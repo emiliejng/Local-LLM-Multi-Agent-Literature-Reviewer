@@ -16,6 +16,7 @@ const CHUNK_SIZE = 500;
 const CHUNK_OVERLAP = 100;
 const TOP_K_CHUNKS = 5;
 const MAX_MB = 25;
+const MIN_SIMILARITY_THRESHOLD = 0.1; // Minimum similarity for relevant chunks
 
 // Available Models Configuration
 const AVAILABLE_MODELS = {
@@ -186,71 +187,172 @@ async function extractTextFromPDF(file) {
 }
 
 function chunkText(text, filename) {
+  console.log(`📝 Chunking text from ${filename}: ${text.length} characters`);
   const chunks = [];
-  const words = text.split(/\s+/);
-  let currentChunk = "";
-
-  for (let i = 0; i < words.length; i++) {
-    currentChunk += words[i] + " ";
-
-    if (currentChunk.length >= CHUNK_SIZE) {
-      chunks.push({ text: currentChunk.trim(), source: filename, embedding: null });
-
-      const overlapWords = Math.floor(CHUNK_OVERLAP / 5);
-      const startIndex = Math.max(0, i - overlapWords);
-      currentChunk = words.slice(startIndex, i + 1).join(" ") + " ";
+  
+  // Clean and normalize text
+  const cleanText = text.replace(/\s+/g, ' ').trim();
+  
+  // Sliding window approach with character-based chunking
+  for (let i = 0; i < cleanText.length; i += (CHUNK_SIZE - CHUNK_OVERLAP)) {
+    const chunk = cleanText.slice(i, i + CHUNK_SIZE);
+    
+    if (chunk.trim().length > 0) {
+      chunks.push({ 
+        text: chunk.trim(), 
+        source: filename, 
+        embedding: null,
+        chunkIndex: chunks.length
+      });
     }
+    
+    // Break if we've reached the end
+    if (i + CHUNK_SIZE >= cleanText.length) break;
   }
-
-  if (currentChunk.trim()) {
-    chunks.push({ text: currentChunk.trim(), source: filename, embedding: null });
-  }
-
+  
+  console.log(`🧩 Created ${chunks.length} chunks with ${CHUNK_OVERLAP} character overlap`);
   return chunks;
 }
 
 async function generateEmbeddings(chunks) {
   if (!embedder) {
-    console.warn("Embedder not loaded yet, skipping embeddings.");
+    console.warn("❌ Embedder not loaded yet, skipping embeddings.");
     return chunks;
   }
 
+  console.log(`🔢 Generating embeddings for ${chunks.length} chunks using ${EMBEDDING_MODEL}...`);
+  let successCount = 0;
+  let errorCount = 0;
+  
   for (let i = 0; i < chunks.length; i++) {
     try {
-      const output = await embedder(chunks[i].text, { pooling: "mean", normalize: true });
+      // Generate embedding with proper options
+      const output = await embedder(chunks[i].text, { 
+        pooling: "mean", 
+        normalize: true 
+      });
+      
+      // Convert tensor to array
       chunks[i].embedding = Array.from(output.data);
+      successCount++;
+      
+      // Progress logging every 10 chunks
+      if (i % 10 === 0 || i === chunks.length - 1) {
+        console.log(`📊 Embedding progress: ${i + 1}/${chunks.length} (${successCount} success, ${errorCount} errors)`);
+      }
+      
     } catch (error) {
-      console.error(`Failed embedding chunk ${i}:`, error);
+      console.error(`❌ Failed to generate embedding for chunk ${i}:`, error);
+      chunks[i].embedding = null; // Mark as failed
+      errorCount++;
     }
   }
 
-  return chunks;
+  console.log(`✅ Embedding generation complete: ${successCount} successful, ${errorCount} failed`);
+  return chunks.filter(chunk => chunk.embedding !== null); // Filter out failed embeddings
 }
 
+/**
+ * Calculate cosine similarity between two vectors
+ * Formula: similarity = (Á·B) / (||Á|| × ||B||)
+ * @param {number[]} vecA - First vector
+ * @param {number[]} vecB - Second vector
+ * @returns {number} Similarity score between 0 and 1
+ */
 function cosineSimilarity(vecA, vecB) {
-  if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
-
-  let dot = 0, na = 0, nb = 0;
-  for (let i = 0; i < vecA.length; i++) {
-    dot += vecA[i] * vecB[i];
-    na += vecA[i] * vecA[i];
-    nb += vecB[i] * vecB[i];
+  if (!vecA || !vecB) {
+    console.warn("❌ One or both vectors are null/undefined");
+    return 0;
   }
+  
+  if (vecA.length !== vecB.length) {
+    console.warn(`❌ Vector length mismatch: ${vecA.length} vs ${vecB.length}`);
+    return 0;
+  }
+  
+  if (vecA.length === 0) return 0;
 
-  const denom = Math.sqrt(na) * Math.sqrt(nb);
-  return denom === 0 ? 0 : dot / denom;
+  // Calculate dot product and magnitudes
+  let dotProduct = 0;
+  let magnitudeA = 0;
+  let magnitudeB = 0;
+  
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    magnitudeA += vecA[i] * vecA[i];
+    magnitudeB += vecB[i] * vecB[i];
+  }
+  
+  // Calculate magnitudes (L2 norm)
+  magnitudeA = Math.sqrt(magnitudeA);
+  magnitudeB = Math.sqrt(magnitudeB);
+  
+  // Avoid division by zero
+  if (magnitudeA === 0 || magnitudeB === 0) {
+    console.warn("❌ One or both vectors have zero magnitude");
+    return 0;
+  }
+  
+  // Return cosine similarity
+  const similarity = dotProduct / (magnitudeA * magnitudeB);
+  return Math.max(0, Math.min(1, similarity)); // Clamp between 0 and 1
 }
 
 async function searchSimilarChunks(query) {
-  if (!embedder || vectorStore.length === 0) return [];
+  if (!embedder) {
+    console.warn("❌ Embedder not available for search");
+    return [];
+  }
+  
+  if (vectorStore.length === 0) {
+    console.warn("❌ Vector store is empty - no documents to search");
+    return [];
+  }
+  
+  console.log(`🔍 Searching for: "${query.substring(0, 100)}${query.length > 100 ? '...' : ''}"`);  
+  console.log(`📊 Vector store contains ${vectorStore.length} chunks`);
 
-  const q = await embedder(query, { pooling: "mean", normalize: true });
-  const qEmb = Array.from(q.data);
+  try {
+    // Generate query embedding
+    const queryEmbedding = await embedder(query, { 
+      pooling: "mean", 
+      normalize: true 
+    });
+    const queryVector = Array.from(queryEmbedding.data);
+    
+    console.log(`🎯 Query embedding generated: ${queryVector.length} dimensions`);
 
-  return vectorStore
-    .map((chunk) => ({ ...chunk, similarity: cosineSimilarity(qEmb, chunk.embedding) }))
-    .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, TOP_K_CHUNKS);
+    // Calculate similarities and sort
+    const results = vectorStore
+      .map((chunk, index) => {
+        if (!chunk.embedding) {
+          console.warn(`⚠️ Chunk ${index} has no embedding`);
+          return { ...chunk, similarity: 0, index };
+        }
+        
+        const similarity = cosineSimilarity(queryVector, chunk.embedding);
+        return { ...chunk, similarity, index };
+      })
+      .filter(result => result.similarity >= MIN_SIMILARITY_THRESHOLD)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, TOP_K_CHUNKS);
+
+    console.log(`📊 Found ${results.length} relevant chunks above threshold ${MIN_SIMILARITY_THRESHOLD}`);
+    
+    if (results.length > 0) {
+      console.log("🎯 Top similarities:", results.slice(0, 3).map(r => ({
+        source: r.source,
+        similarity: r.similarity.toFixed(3),
+        preview: r.text.substring(0, 50) + "..."
+      })));
+    }
+
+    return results;
+    
+  } catch (error) {
+    console.error("❌ Search failed:", error);
+    return [];
+  }
 }
 
 async function processPDF(file) {
