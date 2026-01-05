@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Paper Assistant</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- pdf.js (global: window.pdfjsLib) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <link rel="stylesheet" href="tailwind.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Outfit', 'sans-serif'] },
+          colors: {
+            lavender: '#E6E6FA',
+            'soft-blue': '#F0F4FF',
+            'glass-border': 'rgba(255, 255, 255, 0.5)',
+            'primary-accent': '#6366F1',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-pastel-gradient text-slate-700 h-screen w-screen overflow-hidden font-sans selection:bg-indigo-100">
+
+  <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+    <div class="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-float-slow"></div>
+    <div class="absolute top-[20%] right-[-10%] w-[600px] h-[600px] bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-float-delayed"></div>
+    <div class="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-float-slow"></div>
+  </div>
+
+  <!-- ✅ Petit ajustement responsive : si l’écran est petit, ça reste visible -->
+  <div class="flex h-full p-4 gap-4 flex-col lg:flex-row">
+
+    <aside class="w-full lg:w-20 glass-panel rounded-3xl flex flex-row lg:flex-col items-center py-4 lg:py-8 gap-6 lg:gap-8 shadow-neu-soft z-20 px-4 lg:px-0">
+      <div class="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-pink-300 shadow-lg cursor-pointer hover:scale-105 transition-transform"></div>
+
+      <nav class="flex flex-row lg:flex-col gap-6 w-full items-center justify-center lg:justify-start">
+        <button class="nav-btn active" aria-label="Home">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+        </button>
+        <button class="nav-btn" aria-label="Chat">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+        </button>
+        <button class="nav-btn" aria-label="Library">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+        </button>
+        <button class="nav-btn lg:mt-auto" aria-label="Settings">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        </button>
+      </nav>
+    </aside>
+
+    <main class="flex-1 flex flex-col gap-4 relative min-h-0">
+
+      <header class="flex justify-between items-center px-2 py-1">
+        <div class="glass-panel px-6 py-2 rounded-full flex gap-1 items-center">
+          <button id="dashboard-tab" class="tab-btn text-sm font-medium text-gray-500 hover:text-indigo-600 transition-colors">Dashboard</button>
+          <span class="text-gray-300">|</span>
+          <button id="chat-tab" class="tab-btn text-sm font-bold text-indigo-600 bg-white/50 px-3 py-1 rounded-full shadow-sm">Chat</button>
+          <span class="text-gray-300">|</span>
+          <button id="papers-tab" class="tab-btn text-sm font-medium text-gray-500 hover:text-indigo-600 transition-colors">Papers</button>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <div class="text-right">
+            <h2 class="text-sm font-bold text-gray-700">Good Morning!</h2>
+            <p class="text-xs text-gray-500">Ready to research?</p>
+          </div>
+          <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-100 to-purple-100 border-2 border-white flex items-center justify-center text-xl shadow-sm relative">
+            👩‍🔬
+            <span class="absolute top-0 right-0 w-3 h-3 bg-red-400 rounded-full border-2 border-white"></span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Chat View -->
+      <section id="chat-view" class="flex-1 glass-panel rounded-[2.5rem] p-6 relative flex flex-col overflow-hidden shadow-neu-soft min-h-0">
+
+        <div class="absolute top-0 left-1/2 transform -translate-x-1/2 -mt-10 pointer-events-none z-0 opacity-80">
+          <div class="relative w-[400px] h-[300px]">
+            <div class="absolute inset-0 bg-gradient-to-br from-indigo-300 via-purple-300 to-blue-200 rounded-[40%_60%_70%_30%/40%_50%_60%_50%] mix-blend-multiply filter blur-md animate-morph shadow-inner-glow"></div>
+            <div class="absolute inset-4 bg-gradient-to-tl from-white/40 to-transparent rounded-[40%_60%_70%_30%] mix-blend-overlay"></div>
+          </div>
+        </div>
+
+        <div class="z-10 flex flex-col h-full min-h-0">
+
+          <div class="text-center mt-12 mb-8">
+            <h1 class="text-4xl font-extrabold tracking-tight text-slate-800 drop-shadow-sm">
+              AI Paper Assistant
+            </h1>
+            <p class="text-slate-500 mt-2 font-light">
+              Upload PDFs and start your <span class="font-medium text-indigo-500">Literature Review</span>
+            </p>
+          </div>
+
+          <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-2 space-y-6 scrollbar-hide mb-4 min-h-0">
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold shadow-md">AI</div>
+              <div class="glass-bubble-ai p-4 rounded-2xl rounded-tl-none max-w-[80%] shadow-sm">
+                <p class="text-sm text-slate-700 leading-relaxed">
+                  Hello! I'm your AI Literature Reviewer. Upload PDF research papers using the drag & drop zone on the right, and I'll analyze them using my RAG engine. I can help you:
+                  <br>• Summarize key findings
+                  <br>• Compare methodologies across papers
+                  <br>• Generate comprehensive literature reviews
+                  <br>• Extract and cite specific information
+                  <br><br>Upload some papers to get started!
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-auto relative group">
+            <div class="absolute -inset-0.5 bg-gradient-to-r from-pink-300 to-indigo-300 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+            <div class="relative bg-white/60 backdrop-blur-xl rounded-2xl border border-white/50 p-2 flex items-center gap-2 shadow-lg">
+
+              <button class="p-2 rounded-xl hover:bg-white/50 text-gray-400 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+              </button>
+
+              <input type="text" id="chat-input" placeholder="Ask about the research..." class="flex-1 bg-transparent border-none outline-none text-slate-700 placeholder-slate-400 font-medium h-10 px-2">
+
+              <button id="mic-btn" class="p-2 rounded-xl hover:bg-white/50 text-gray-400 hover:text-indigo-500 transition-colors" title="Speech to Text">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+              </button>
+
+              <button id="send-btn" class="p-2 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200">
+                <svg class="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+              </button>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Papers View -->
+      <section id="papers-view" class="hidden flex-1 glass-panel rounded-[2.5rem] p-6 relative flex flex-col overflow-hidden shadow-neu-soft min-h-0">
+        
+        <div class="z-10 flex flex-col h-full min-h-0">
+          
+          <div class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold tracking-tight text-slate-800 drop-shadow-sm">
+              📚 Paper Library
+            </h1>
+            <p class="text-slate-500 mt-2 font-light">
+              Manage and view your <span class="font-medium text-indigo-500">uploaded research papers</span>
+            </p>
+          </div>
+
+          <!-- Papers Grid -->
+          <div class="flex-1 overflow-y-auto scrollbar-hide">
+            <div id="papers-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
+              <!-- Papers will be dynamically added here -->
+            </div>
+            
+            <!-- Empty state -->
+            <div id="papers-empty-state" class="flex flex-col items-center justify-center h-64 text-center">
+              <div class="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-4xl mb-4">
+                📄
+              </div>
+              <h3 class="text-xl font-semibold text-gray-700 mb-2">No papers uploaded yet</h3>
+              <p class="text-gray-500 mb-4">Upload PDF files using the drag & drop zone to get started</p>
+              <button id="goto-upload-btn" class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:shadow-lg transition-all duration-200">
+                Go to Upload
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+    <!-- ✅ IMPORTANT: plus de "hidden lg:flex" => la drop-zone est visible partout -->
+    <aside class="w-full lg:w-80 flex flex-col gap-4 min-h-0">
+
+      <div
+        id="drop-zone"
+        class="glass-panel rounded-3xl p-6 flex flex-col items-center justify-center text-center gap-3 shadow-neu-soft hover:translate-y-[-2px] transition-transform duration-300 cursor-pointer group border-2 border-dashed border-gray-300"
+        role="button"
+        tabindex="0"
+        aria-label="Upload PDF: drag & drop or click"
+      >
+        <div class="w-14 h-14 rounded-full bg-blue-50 text-blue-400 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        </div>
+        <div>
+          <h3 class="font-bold text-gray-700">Upload PDF</h3>
+          <p class="text-xs text-gray-400">Drag & drop or click</p>
+        </div>
+
+        <input type="file" id="file-input" accept="application/pdf,.pdf" multiple class="hidden" />
+      </div>
+
+      <div class="glass-panel rounded-3xl p-5 flex-1 flex flex-col shadow-neu-soft min-h-0">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-bold text-gray-700">Recent</h3>
+          <button class="text-xs text-indigo-400 hover:text-indigo-600">View All</button>
+        </div>
+        <ul id="papers-list" class="space-y-3 overflow-y-auto min-h-0">
+          <li class="p-3 bg-white/40 rounded-2xl flex items-center gap-3 hover:bg-white/60 transition-colors cursor-pointer border border-transparent hover:border-white/50">
+            <div class="w-8 h-8 rounded-lg bg-red-100 text-red-400 flex items-center justify-center text-xs font-bold">PDF</div>
+            <div class="overflow-hidden">
+              <h4 class="text-sm font-semibold text-gray-700 truncate">No papers uploaded yet</h4>
+              <p class="text-[10px] text-gray-400">Upload PDFs to get started</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="glass-panel rounded-3xl p-5 shadow-neu-soft h-48 relative overflow-hidden">
+        <h3 class="font-bold text-gray-700 relative z-10">Vector Store</h3>
+        <div id="vector-store-info" class="mt-4 grid grid-cols-2 gap-2 relative z-10">
+          <div class="bg-indigo-50/50 rounded-xl p-2 text-center">
+            <span class="block text-xl font-bold text-indigo-500">0</span>
+            <span class="text-[10px] text-gray-400">Chunks</span>
+          </div>
+          <div class="bg-purple-50/50 rounded-xl p-2 text-center">
+            <span class="block text-xl font-bold text-purple-500">0</span>
+            <span class="text-[10px] text-gray-400">Papers</span>
+          </div>
+        </div>
+        <div class="mt-4 text-xs text-gray-500 relative z-10">
+          RAG Engine Status: <span id="rag-status" class="text-orange-500">Loading…</span>
+        </div>
+        <svg class="absolute bottom-0 left-0 w-full h-20 opacity-30 text-indigo-400" viewBox="0 0 100 40" preserveAspectRatio="none">
+          <path d="M0 30 Q 20 10 40 25 T 100 15 V 40 H 0 Z" fill="currentColor"></path>
+        </svg>
+      </div>
+
+            <!-- System Controls Panel -->
+            <div class="glass-panel rounded-3xl p-5 shadow-neu-soft relative overflow-hidden">
+                <h3 class="font-bold text-gray-700 relative z-10 mb-4">System Controls</h3>
+                
+                <!-- Temperature Control -->
+                <div class="mb-4 relative z-10">
+                    <label class="block text-xs font-medium text-gray-600 mb-2">Temperature</label>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500">0</span>
+                        <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.7" 
+                               class="flex-1 h-1 bg-gray-200 rounded-lg appearance-none slider">
+                        <span class="text-xs text-gray-500">1</span>
+                    </div>
+                    <div class="text-xs text-indigo-600 font-medium mt-1">
+                        Value: <span id="temperature-value">0.7</span>
+                    </div>
+                </div>
+
+                <!-- Model Selection -->
+                <div class="mb-4 relative z-10">
+                    <label class="block text-xs font-medium text-gray-600 mb-2">LLM Model</label>
+                    <select id="model-select" class="w-full text-xs border border-gray-200 rounded-lg p-2 bg-white/80 focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
+                        <option value="Llama-3.2-1B-Instruct-q4f32_1-MLC">Llama 3.2 1B (Fast)</option>
+                        <option value="Llama-3.2-3B-Instruct-q4f32_1-MLC">Llama 3.2 3B (Balanced)</option>
+                        <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC">Llama 3.1 8B (Quality)</option>
+                        <option value="Phi-3.5-mini-instruct-q4f32_1-MLC">Phi 3.5 Mini (Efficient)</option>
+                        <option value="gemma-2-2b-it-q4f32_1-MLC">Gemma 2 2B (Google)</option>
+                    </select>
+                    <div class="text-xs text-gray-500 mt-1">
+                        Status: <span id="model-status" class="text-orange-500">Loading...</span>
+                    </div>
+                </div>
+
+                <!-- Quick System Prompts -->
+                <div class="relative z-10">
+                    <label class="block text-xs font-medium text-gray-600 mb-2">Quick Prompts</label>
+                    <select id="system-prompt-select" class="w-full text-xs border border-gray-200 rounded-lg p-2 bg-white/80 focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
+                        <option value="default">Literature Reviewer</option>
+                        <option value="technical">Technical Analyzer</option>
+                        <option value="methodological">Methodology Critic</option>
+                        <option value="comparative">Comparative Researcher</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                </div>
+
+                <!-- Custom Prompt Modal Trigger -->
+                <button id="edit-prompt-btn" class="mt-3 w-full text-xs bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-2 px-3 rounded-lg hover:shadow-lg transition-all duration-200 relative z-10">
+                    Edit System Prompt
+                </button>
+            </div>
+
+        </aside>
+
+    </div>
+
+    <!-- PDF Viewer Modal -->
+    <div id="pdf-viewer-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 id="pdf-viewer-title" class="text-lg font-bold text-gray-800">Paper Viewer</h3>
+                <button id="close-pdf-viewer" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex-1 p-4">
+                <iframe id="pdf-viewer-frame" class="w-full h-full border-0 rounded-lg" src=""></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Prompt Modal -->
+    <div id="prompt-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-bold text-gray-800">Edit System Prompt</h3>
+                <p class="text-sm text-gray-600 mt-1">Customize how the AI behaves and responds</p>
+            </div>
+            
+            <div class="p-6">
+                <textarea id="custom-prompt-textarea" rows="8" 
+                          class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-transparent resize-none"
+                          placeholder="Enter your custom system prompt..."></textarea>
+                <div class="text-xs text-gray-500 mt-2">
+                    Tip: Be specific about the role, tone, and format you want the AI to use.
+                </div>
+            </div>
+            
+            <div class="p-6 border-t border-gray-200 flex gap-3 justify-end">
+                <button id="cancel-prompt-btn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+                    Cancel
+                </button>
+                <button id="save-prompt-btn" class="px-6 py-2 text-sm bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:shadow-lg transition-all duration-200">
+                    Save & Apply
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
+                    Edit System Prompt
+                </button>
+            </div>

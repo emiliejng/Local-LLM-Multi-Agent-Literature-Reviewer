@@ -1,0 +1,170 @@
+/* tailwind.css */
+
+/* Using CSS variables to allow fine-tuning of the "Glass" effect */
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.65);
+    --glass-border: rgba(255, 255, 255, 0.4);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  }
+  
+  @tailwind base;
+  @tailwind components;
+  @tailwind utilities;
+  
+  @layer utilities {
+    .bg-pastel-gradient {
+      background: linear-gradient(135deg, #f3f4f6 0%, #e0e7ff 50%, #fdf2f8 100%);
+    }
+  
+    /* The core Glassmorphism card style */
+    .glass-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.02), 
+        0 2px 4px -1px rgba(0, 0, 0, 0.02),
+        inset 0 0 20px rgba(255, 255, 255, 0.5); /* Inner light */
+    }
+  
+    /* Soft, colored shadows for depth (Neumorphism-lite) */
+    .shadow-neu-soft {
+      box-shadow: 
+        10px 10px 20px rgba(166, 180, 200, 0.15),
+        -10px -10px 20px rgba(255, 255, 255, 0.8);
+    }
+  
+    .shadow-inner-glow {
+      box-shadow: inset -10px -10px 20px rgba(0,0,0,0.05), inset 10px 10px 20px rgba(255,255,255,0.4);
+    }
+  
+    /* Chat Bubbles */
+    .glass-bubble-ai {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+  
+    .glass-bubble-user {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+    }
+  
+    /* Animations */
+    @keyframes float {
+      0% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-15px) rotate(2deg); }
+      100% { transform: translateY(0px) rotate(0deg); }
+    }
+  
+    @keyframes morph {
+      0% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
+      34% { border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%; }
+      67% { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; }
+      100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
+    }
+    
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+  
+    .animate-float-slow {
+      animation: float 8s ease-in-out infinite;
+    }
+    
+    .animate-float-delayed {
+      animation: float 9s ease-in-out infinite;
+      animation-delay: 1s;
+    }
+  
+    .animate-morph {
+      animation: morph 10s ease-in-out infinite alternate;
+    }
+    
+    .animate-fade-in-up {
+        animation: fadeInUp 0.4s ease-out forwards;
+    }
+  
+    /* Utility to hide scrollbar but keep functionality */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    
+    /* Drag & Drop zone styles */
+    .drag-over {
+        border-color: #6366f1 !important;
+        background-color: rgba(99, 102, 241, 0.1) !important;
+        transform: scale(1.02);
+    }
+    
+    /* Loading animation for embeddings */
+    .embedding-progress {
+        background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #6366f1 100%);
+        background-size: 200% 100%;
+        animation: loading-gradient 2s ease-in-out infinite;
+    }
+    
+    @keyframes loading-gradient {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
+    /* Status indicators */
+    .status-loading {
+        color: #f59e0b;
+    }
+    .status-ready {
+        color: #10b981;
+    }
+    .status-error {
+        color: #ef4444;
+    }
+    
+    /* Custom slider styles */
+    .slider {
+        -webkit-appearance: none;
+        appearance: none;
+        background: linear-gradient(to right, #e5e7eb 0%, #e5e7eb 100%);
+        outline: none;
+        border-radius: 50px;
+    }
+    
+    .slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+    }
+    
+    .slider::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+    }
+    
+    .slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Modal backdrop blur */
+    .modal-backdrop {
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+  }
