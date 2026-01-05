@@ -521,6 +521,11 @@ async function sendChatMessage() {
 
   conversationHistory.push({ role: "user", content: text });
   isTyping = true;
+  
+  // Show typing indicator
+  const typingIndicator = createTypingIndicator();
+  chatHistoryContainer.appendChild(typingIndicator);
+  scrollToBottom();
 
   try {
     let aiResponseText = "";
@@ -562,10 +567,18 @@ async function sendChatMessage() {
     }
 
     conversationHistory.push({ role: "assistant", content: aiResponseText });
+    
+    // Remove typing indicator before showing response
+    removeTypingIndicator();
+    
     chatHistoryContainer.appendChild(createMessageBubble(aiResponseText, false));
     scrollToBottom();
   } catch (err) {
     console.error("Chat Error:", err);
+    
+    // Remove typing indicator on error
+    removeTypingIndicator();
+    
     chatHistoryContainer.appendChild(createMessageBubble("Error generating response.", false));
   } finally {
     isTyping = false;
@@ -573,6 +586,40 @@ async function sendChatMessage() {
 }
 
 // --- UI helpers ---
+function createTypingIndicator() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "flex items-start gap-3 animate-fade-in-up typing-indicator-wrapper";
+  wrapper.id = "typing-indicator";
+
+  const avatar = document.createElement("div");
+  avatar.className = "w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold shadow-md";
+  avatar.textContent = "AI";
+
+  const bubble = document.createElement("div");
+  bubble.className = "glass-bubble-ai p-4 rounded-2xl rounded-tl-none max-w-[80%] shadow-sm";
+
+  const typingContainer = document.createElement("div");
+  typingContainer.className = "typing-indicator";
+  
+  for (let i = 0; i < 3; i++) {
+    const dot = document.createElement("div");
+    dot.className = "typing-dot";
+    typingContainer.appendChild(dot);
+  }
+
+  bubble.appendChild(typingContainer);
+  wrapper.appendChild(avatar);
+  wrapper.appendChild(bubble);
+  return wrapper;
+}
+
+function removeTypingIndicator() {
+  const indicator = document.getElementById("typing-indicator");
+  if (indicator) {
+    indicator.remove();
+  }
+}
+
 function createMessageBubble(text, isUser = false) {
   const wrapper = document.createElement("div");
   wrapper.className = "flex items-start gap-3 animate-fade-in-up";
