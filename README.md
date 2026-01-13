@@ -1,152 +1,113 @@
 # Local LLM Multi-Agent Literature Reviewer 📚
 
-A privacy-first research assistant that runs **fully in your browser**.
+A **privacy-first** AI research assistant that runs **fully in your browser**.  
+It reads PDF papers, builds a local **Vector DB**, and answers questions with **RAG**.  
+It can also generate a **concise Literature Review** with **citations** (the exact chunks used).
 
-This app reads PDF papers.  
-It builds a local vector database.  
-It answers questions with RAG.  
-It can write a short literature review with citations.
-
-No cloud. No upload.  
-Everything stays on your device.
+**Local AI:** no cloud calls, no uploads, your documents stay on your device.
 
 ---
 
 ## Live Demo
 
-- Live URL: **(add your GitHub Pages link)**
-- Recommended browser: recent **Chrome / Edge** with **WebGPU** enabled
-- Best on desktop: model loading and embeddings are heavy
+- Live URL: https://emiliejng.github.io/Local-LLM-Multi-Agent-Literature-Reviewer/
+- Recommended desktop browser: recent **Chrome / Edge** with **WebGPU** enabled
+
+---
+
+## Visuals 
+
+<img width="1503" height="901" alt="Capture d’écran 2026-01-13 à 01 26 26" src="https://github.com/user-attachments/assets/e2d0189d-e48a-4980-b3f7-56d522a8290b" />
 
 ---
 
 ## Overview
 
-The workflow is simple:
+This app implements an end-to-end **RAG pipeline in Vanilla JavaScript**:
 
-1. Drop PDF papers into the page  
-2. Extract text with **PDF.js**  
-3. Split text into chunks  
-4. Create embeddings with **Transformers.js**  
-5. Store chunks + vectors in a local **Vector DB**  
-6. Search with **cosine similarity**  
-7. Send the best chunks to a local LLM with **WebLLM**
+1. **Upload PDFs** (drag & drop)
+2. Extract text with **PDF.js**
+3. Split text into chunks (default: **400 chars**, **80 overlap**)
+4. Create embeddings with **Transformers.js** (`Xenova/all-MiniLM-L6-v2`)
+5. Store chunks + vectors in a client-side **Vector DB** (`state.vectorStore`)
+6. Retrieve top chunks using **cosine similarity**
+7. Inject retrieved context into a **WebLLM** prompt
+8. Show **citations** for every answer
 
-The LLM replies using your documents.  
-The UI shows which chunks were used (citations).
+Everything runs locally in the browser using **WebGPU**.
 
 ---
 
 ## Features
 
-### RAG Engine (PDF → Chunks → Vectors → Search)
-- Drag & drop PDF upload
-- Text extraction with **PDF.js**
-- Chunking with overlap (400 chars, 80 overlap)
-- Embeddings with **Transformers.js** (`Xenova/all-MiniLM-L6-v2`)
-- Simple local Vector Store (`state.vectorStore`)
-- Pure JS cosine similarity search
-- Multiple PDFs at the same time
-- Memory view (chunks count / storage info)
-
-### Agentic Chat (WebLLM + Context Injection)
-- Local model loading with **WebLLM**
-- Loading status in the UI
-- Chat history (the agent remembers)
-- System prompt: "Academic Researcher"
-- Top-N retrieved chunks injected into the prompt
-- Citations UI: shows which document parts are used
-- Optional controls panel (temperature, system prompt)
-
-### Bonus: Voice (Optional)
-- TTS with browser **SpeechSynthesis**
-- STT with Transformers.js (`Xenova/whisper-tiny`)
-- VAD logic to auto-send when you stop speaking
-- Visual state: Listening / Processing
-
----
-
-## Screenshot / Video
-
-**Project Title & Visuals:** Add a screenshot of the interface with a generated Literature Review.
-
-Recommended visuals for your repo:
-- Screenshot: `images/screenshot.png` - showing the full interface
-- Optional GIF: `images/rag-demo.gif` - demonstrating the RAG process  
-- Optional video: `demo.mp4` - complete workflow demonstration
-
-Your screenshot should show:
-- PDF upload zone with uploaded papers
-- Memory bank (chunks count / storage stats)
-- Chat interface with citations
-- A generated literature review output
+- 100% client-side: **no server**, **no uploads**
+- Multi-PDF ingestion (drag & drop)
+- Chunking + embeddings + cosine similarity retrieval (pure JS)
+- WebLLM chat with history
+- Citations UI (shows which chunks support the answer)
+- Memory bank view (chunk count / indexing status)
+- Optional voice mode (TTS / STT / VAD)
 
 ---
 
 ## Tech Stack
 
-**Core Technologies (as specified in PROJECT_LLM.md):**
-
 - **WebLLM** (LLM inference in the browser, WebGPU)
-- **Transformers.js** (embeddings + optional Whisper)
-- **PDF.js** (PDF text extraction)
-- **Vanilla JavaScript** (RAG, vector store, UI logic)
-- **Tailwind CSS** (CDN)
+- **Transformers.js** (embeddings + optional Whisper STT)
+- **Tailwind CSS** (CDN UI)
+- **Vanilla JavaScript**
+- **PDF.js** (PDF extraction)
 
 ---
 
 ## Getting Started (Local)
 
-**Important:** You must run a local server.  
-Do not open `index.html` by double-clicking.
+You must serve the project over HTTP (ES modules + browser security).  
+Do **not** open `index.html` by double-clicking.
 
-**Local Setup:** As required by the project specifications, this application needs a local server (e.g., Python or VS Code Live Server) for development due to ES modules and CORS requirements.
-
-### Prerequisites
-- Chrome/Edge with WebGPU
-- Python 3 (or any local server)
-
-### Usage Guide - Clear instructions to run locally:
+### Option A — Python (recommended)
 
 ```bash
 cd /path/to/your/project
-python -m http.server
+python -m http.server 8000
 # Open http://localhost:8000
 ```
 
-**Alternative local servers:**
-```bash
-# VS Code Live Server extension
-# Right-click index.html → "Open with Live Server"
+### Option B — VS Code Live Server
 
-# Node.js
-npx serve .
-
-# PHP
-php -S localhost:8000
-```
-
-### First Use
-1. Click "Initialize Model" to load WebLLM
-2. Wait for embedding model to load
-3. Drag PDF files into the upload zone
-4. Start asking questions about your papers
+1. Install the Live Server extension
+2. Right-click `index.html` → Open with Live Server
 
 ---
 
-## Project Architecture
+## Usage Guide
+
+### 1. Initialize Model
+- Click "Initialize Model"
+- Wait for WebLLM + embedding model to load
+
+### 2. Upload PDFs
+- Drag & drop one or more PDF papers
+- Wait for indexing: PDF → text → chunks → embeddings
+
+### 3. Ask Questions
+- Type a question about your papers
+- The app retrieves the most relevant chunks and shows citations
+
+### 4. Generate a Literature Review
+- Ask: "Generate a concise literature review about …"
+- The agent synthesizes themes across papers with citations
+
+---
+
+## Project Structure
 
 ```
-index.html          # Main page, UI components, Tailwind CSS
-main.js             # RAG engine, WebLLM integration, chat logic
-tailwind.css        # Custom styles and animations
+index.html          # UI (Tailwind) + layout
+main.js             # RAG engine + WebLLM chat + citations (+ optional audio)
 PROJECT_LLM.md      # Full project specifications
+images/             # screenshot.png, rag-demo.gif
 ```
-
-### Key Functions
-- `processPDF()`: PDF → text → chunks → embeddings → vector store
-- `searchVectorStore()`: Query → embeddings → cosine similarity → top chunks
-- `generateResponse()`: Context + query → WebLLM → response with citations
 
 ---
 
@@ -155,134 +116,17 @@ PROJECT_LLM.md      # Full project specifications
 Edit the constants in `main.js`:
 
 ```javascript
-const CHUNK_SIZE = 400;              // Characters per chunk
-const CHUNK_OVERLAP = 80;            // Overlap between chunks  
-const TOP_K_CHUNKS = 8;              // Max chunks per query
+const CHUNK_SIZE = 400;
+const CHUNK_OVERLAP = 80;
+const TOP_K_CHUNKS = 8;
+
 const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
 const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
 ```
 
 ---
 
-## Privacy & Performance
+## Notes (Privacy & Performance)
 
-**Privacy**: All processing happens locally. No data is sent to any server.
-
-**Performance Tips**:
-- Use Chrome/Edge with WebGPU for best speed
-- Start with smaller PDFs (< 10MB each)
-- The 1B model is fastest, 3B+ models need more RAM
-- Close other browser tabs during model loading
-
----
-
-## Credits
-
-Built for the **Local LLM Multi-Agent Literature Reviewer** project.
-
-Technologies:
-- [WebLLM](https://webllm.mlc.ai/) by MLC Team
-- [Transformers.js](https://huggingface.co/docs/transformers.js/) by Hugging Face  
-- [PDF.js](https://mozilla.github.io/pdf.js/) by Mozilla
-| **Architecture** | Vanilla JavaScript | Zero dependencies, pure client-side |
-
-## Quick Start
-
-### Option 1: Online (Deployed Version)
-Visit the live demo: **[https://your-github-username.github.io/projet_LLM_AICG](https://your-github-username.github.io/projet_LLM_AICG)**
-
-### Option 2: Local Development
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/projet_LLM_AICG.git
-   cd projet_LLM_AICG
-   ```
-
-2. **Start a local server** (required for ES modules)
-   ```bash
-   # Option A: Python
-   python -m http.server 8000
-   
-   # Option B: Node.js
-   npx serve .
-   
-   # Option C: VS Code Live Server Extension
-   # Right-click index.html → "Open with Live Server"
-   ```
-
-3. **Open your browser**
-   - Navigate to `http://localhost:8000`
-   - **Chrome/Edge 113+** recommended (WebGPU support)
-   - Enable experimental features: `chrome://flags/#enable-unsafe-webgpu`
-
-## Usage Guide
-
-### 1. **Upload Research Papers**
-- Drag & drop PDF files to the upload zone
-- Watch real-time processing: PDF → Text → Chunks → Embeddings
-- Monitor Memory Bank statistics as papers are indexed
-
-### 2. **Smart Questioning**
-- Ask natural language questions about your papers
-- See which document sections are being used (citation tracking)
-- Switch between different AI personas (Academic, Technical, etc.)
-
-### 3. **Automated Analysis**
-- Click **Auto Literature Review** for structured academic reviews
-- Use **Analyze Methods** to compare research methodologies  
-- Try **Compare Papers** for side-by-side analysis
-
-### 4. **Voice Interaction** (Bonus)
-- Click 🎤 button to start voice input
-- Enable "Hands-Free Mode" for continuous listening
-- AI responses can be read aloud automatically
-
-## Advanced Configuration
-
-### Model Selection
-The app supports multiple LLM models:
-- **Llama 3.2 1B**: Fast, lightweight (~600MB)
-- **Llama 3.2 3B**: Balanced performance (~1.5GB)  
-- **Llama 3.1 8B**: Highest quality (~4GB)
-- **Phi 3.5 Mini**: Microsoft's efficient model (~2GB)
-- **Gemma 2 2B**: Google's compact model (~1GB)
-
-### System Prompts
-Customize AI behavior with built-in templates:
-- **Academic Researcher**: Structured literature reviews
-- **Technical Analyst**: Deep methodology focus
-- **Methodology Critic**: Research design analysis
-- **Comparative Synthesizer**: Cross-paper synthesis
-
-### Performance Tuning
-- **Temperature**: Control AI creativity (0.0 = focused, 1.0 = creative)
-- **Chunk Size**: Adjust context window (default: 400 chars)
-- **Similarity Threshold**: Filter relevance (default: 0.1)
-
-## Privacy & Security
-
-**100% Client-Side Processing**
-- All AI models run locally in your browser
-- No data sent to external servers
-- PDFs processed entirely on your machine
-- Vector embeddings stored in browser memory
-
-**Local Storage Only**
-- Conversation history: Browser session
-- Uploaded papers: Temporary browser memory
-- Settings: LocalStorage (optional)
-
-### Key Files
-- `index.html`: UI structure with Tailwind CSS
-- `main.js`: Core logic (RAG, WebLLM, voice features)
-- `tailwind.css`: Custom styles and animations
-
-## Acknowledgments
-
-- [WebLLM Team](https://webllm.mlc.ai/) for browser-based LLM inference
-- [Hugging Face](https://huggingface.co/) for Transformers.js and model hosting
-- [Mozilla](https://mozilla.github.io/pdf.js/) for PDF.js library
-- Academic research community for inspiration and use cases
-
----
+- **Privacy:** all processing happens locally in your browser. No data is sent to external servers.
+- **Performance:** WebGPU is required for good speed. Desktop browsers work best.
