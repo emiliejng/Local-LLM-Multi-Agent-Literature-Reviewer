@@ -17,7 +17,11 @@ It can also generate a **concise Literature Review** with **citations** (the exa
 
 ## Visuals 
 
-<img width="1503" height="901" alt="Capture d’écran 2026-01-13 à 01 26 26" src="https://github.com/user-attachments/assets/e2d0189d-e48a-4980-b3f7-56d522a8290b" />
+<img width="1510" height="901" alt="Capture d’écran 2026-01-13 à 03 05 06" src="https://github.com/user-attachments/assets/2fcf548e-ce14-4133-8d83-ea360670c8fd" />
+
+<img width="1510" height="901" alt="Capture d’écran 2026-01-13 à 03 05 10" src="https://github.com/user-attachments/assets/a20a07c5-afd2-494c-b525-6d98c928148a" />
+
+
 
 ---
 
