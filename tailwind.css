@@ -28,6 +28,46 @@
         inset 0 0 20px rgba(255, 255, 255, 0.5); /* Inner light */
     }
   
+    /* Custom scrollbar for sidebar */
+    .custom-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.3);
+      border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(99, 102, 241, 0.5);
+    }
+
+    /* Enhanced animations */
+    @keyframes fade-slide-in {
+      from {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    
+    .animate-fade-slide-in {
+      animation: fade-slide-in 0.3s ease-out;
+    }
+
     /* Soft, colored shadows for depth (Neumorphism-lite) */
     .shadow-neu-soft {
       box-shadow: 
@@ -204,5 +244,57 @@
             transform: translateY(-8px);
             opacity: 1;
         }
+    }
+    
+    /* Enhanced Toggle switch styles (20/20 features) */
+    input:checked + div {
+        background-color: #10b981;
+    }
+    
+    input:checked + div .dot {
+        transform: translateX(100%);
+        background-color: white;
+    }
+    
+    /* Voice status animations */
+    .voice-listening {
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    
+    /* Enhanced memory bank visualization */
+    .memory-bank-stat {
+        transition: all 0.3s ease;
+    }
+    
+    .memory-bank-stat:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Agentic button hover effects */
+    .agentic-btn {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .agentic-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        transition: left 0.5s;
+    }
+    
+    .agentic-btn:hover::before {
+        left: 100%;
     }
   }

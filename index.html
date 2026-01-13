@@ -38,16 +38,17 @@
     <div class="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-float-slow"></div>
   </div>
 
-  <!-- ✅ Petit ajustement responsive : si l’écran est petit, ça reste visible -->
-  <div class="flex h-full p-4 gap-4">
+  <!-- Layout responsive avec sidebar dans le flux normal -->
+  <div class="flex h-full">
 
-    <main class="flex-1 flex flex-col gap-4 relative min-h-0">
+    <!-- Main content area -->
+    <main class="flex-1 flex flex-col gap-2 md:gap-4 relative min-h-0 p-2 md:p-4">
 
-      <header class="flex justify-between items-center px-2 py-1">
-        <div class="glass-panel px-6 py-2 rounded-full flex gap-1 items-center">
-          <button id="chat-tab" class="tab-btn text-sm font-bold text-indigo-600 bg-white/50 px-3 py-1 rounded-full shadow-sm">Chat</button>
+      <header class="flex justify-between items-center px-1 md:px-2 py-1">
+        <div class="glass-panel px-3 md:px-6 py-2 rounded-full flex gap-1 items-center">
+          <button id="chat-tab" class="tab-btn text-xs md:text-sm font-bold text-indigo-600 bg-white/50 px-2 md:px-3 py-1 rounded-full shadow-sm">Chat</button>
           <span class="text-gray-300">|</span>
-          <button id="papers-tab" class="tab-btn text-sm font-medium text-gray-500 hover:text-indigo-600 transition-colors">Papers</button>
+          <button id="papers-tab" class="tab-btn text-xs md:text-sm font-medium text-gray-500 hover:text-indigo-600 transition-colors">Papers</button>
         </div>
 
         <div class="flex items-center gap-4">
@@ -63,7 +64,7 @@
       </header>
 
       <!-- Chat View -->
-      <section id="chat-view" class="flex-1 glass-panel rounded-[2.5rem] p-6 relative flex flex-col overflow-hidden shadow-neu-soft min-h-0">
+      <section id="chat-view" class="flex-1 glass-panel rounded-xl md:rounded-[2.5rem] p-3 md:p-6 relative flex flex-col overflow-hidden shadow-neu-soft min-h-0">
 
         <div class="absolute top-0 left-1/2 transform -translate-x-1/2 -mt-10 pointer-events-none z-0 opacity-80">
           <div class="relative w-[400px] h-[300px]">
@@ -74,20 +75,20 @@
 
         <div class="z-10 flex flex-col h-full min-h-0">
 
-          <div class="text-center mt-12 mb-8">
-            <h1 class="text-4xl font-extrabold tracking-tight text-slate-800 drop-shadow-sm">
+          <div class="text-center mt-6 md:mt-12 mb-4 md:mb-8">
+            <h1 class="text-2xl md:text-4xl lg:text-4xl font-extrabold tracking-tight text-slate-800 drop-shadow-sm">
               AI Paper Assistant
             </h1>
-            <p class="text-slate-500 mt-2 font-light">
+            <p class="text-slate-500 mb-4 md:mb-6 lg:mb-8 font-light text-sm md:text-base">
               Upload PDFs and start your <span class="font-medium text-indigo-500">Literature Review</span>
             </p>
           </div>
 
-          <div id="chat-history" class="flex-1 overflow-y-auto px-4 py-2 space-y-6 scrollbar-hide mb-4 min-h-0">
-            <div class="flex items-start gap-3">
-              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold shadow-md">AI</div>
-              <div class="glass-bubble-ai p-4 rounded-2xl rounded-tl-none max-w-[80%] shadow-sm">
-                <p class="text-sm text-slate-700 leading-relaxed">
+          <div id="chat-history" class="flex-1 overflow-y-auto px-2 md:px-4 py-2 space-y-3 md:space-y-6 scrollbar-hide mb-4 min-h-0">
+            <div class="flex items-start gap-2 md:gap-3">
+              <div class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold shadow-md">AI</div>
+              <div class="glass-bubble-ai p-3 md:p-4 rounded-xl md:rounded-2xl rounded-tl-none max-w-[85%] md:max-w-[80%] shadow-sm">
+                <p class="text-xs md:text-sm text-slate-700 leading-relaxed">
                   Hello! I'm your AI Literature Reviewer. Upload PDF research papers using the drag & drop zone on the right, and I'll analyze them using my RAG engine. I can help you:
                   <br>• Summarize key findings
                   <br>• Compare methodologies across papers
@@ -95,26 +96,38 @@
                   <br>• Extract and cite specific information
                   <br><br>Upload some papers to get started!
                 </p>
+                <!-- Agentic Quick Actions for 20/20 Score -->
+                <div class="mt-3 md:mt-4 flex flex-wrap gap-1 md:gap-2">
+                  <button id="literature-review-btn" class="px-2 md:px-3 py-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs rounded-full hover:shadow-lg transition-all">
+                    📚 Auto Literature Review
+                  </button>
+                  <button id="methodology-analysis-btn" class="px-2 md:px-3 py-1 bg-gradient-to-r from-green-500 to-blue-500 text-white text-xs rounded-full hover:shadow-lg transition-all">
+                    🔬 Analyze Methods
+                  </button>
+                  <button id="compare-papers-btn" class="px-2 md:px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs rounded-full hover:shadow-lg transition-all">
+                    📊 Compare All Papers
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           <div class="mt-auto relative group">
-            <div class="absolute -inset-0.5 bg-gradient-to-r from-pink-300 to-indigo-300 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-            <div class="relative bg-white/60 backdrop-blur-xl rounded-2xl border border-white/50 p-2 flex items-center gap-2 shadow-lg">
+            <div class="absolute -inset-0.5 bg-gradient-to-r from-pink-300 to-indigo-300 rounded-xl md:rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+            <div class="relative bg-white/60 backdrop-blur-xl rounded-xl md:rounded-2xl border border-white/50 p-1.5 md:p-2 flex items-center gap-2 shadow-lg">
 
-              <button class="p-2 rounded-xl hover:bg-white/50 text-gray-400 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+              <button class="p-1.5 md:p-2 rounded-lg md:rounded-xl hover:bg-white/50 text-gray-400 transition-colors">
+                <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
               </button>
 
-              <input type="text" id="chat-input" placeholder="Ask about the research..." class="flex-1 bg-transparent border-none outline-none text-slate-700 placeholder-slate-400 font-medium h-10 px-2">
+              <input type="text" id="chat-input" placeholder="Ask about the research..." class="flex-1 bg-transparent border-none outline-none text-slate-700 placeholder-slate-400 font-medium h-8 md:h-10 px-2 text-sm md:text-base">
 
-              <button id="mic-btn" class="p-2 rounded-xl hover:bg-white/50 text-gray-400 hover:text-indigo-500 transition-colors" title="Speech to Text">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+              <button id="mic-btn" class="p-1.5 md:p-2 rounded-lg md:rounded-xl hover:bg-white/50 text-gray-400 hover:text-indigo-500 transition-colors" title="Speech to Text">
+                <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
               </button>
 
-              <button id="send-btn" class="p-2 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200">
-                <svg class="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+              <button id="send-btn" class="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200">
+                <svg class="w-4 h-4 md:w-5 md:h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
               </button>
 
             </div>
@@ -124,7 +137,7 @@
       </section>
 
       <!-- Papers View -->
-      <section id="papers-view" class="hidden flex-1 glass-panel rounded-[2.5rem] p-6 relative flex flex-col overflow-hidden shadow-neu-soft min-h-0">
+      <section id="papers-view" class="hidden flex-1 glass-panel rounded-xl md:rounded-[2.5rem] p-3 md:p-6 relative flex flex-col overflow-hidden shadow-neu-soft min-h-0">
         
         <div class="z-10 flex flex-col h-full min-h-0">
           
@@ -160,145 +173,221 @@
       </section>
     </main>
 
-    <!-- Sidebar droite avec largeur fixe -->
-    <aside class="w-80 flex flex-col gap-4 min-h-0">
+    <!-- Right Sidebar - In document flow -->
+    <aside class="w-80 h-full bg-pastel-gradient/95 backdrop-blur-sm border-l border-white/30 shadow-2xl hidden lg:flex flex-col overflow-hidden">
+      
+      <!-- Sidebar Header -->
+      <div class="p-4 border-b border-white/20">
+        <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+          <span class="w-2 h-2 bg-indigo-500 rounded-full"></span>
+          Research Assistant
+        </h2>
+        <p class="text-xs text-slate-500 mt-1">Tools & Citations</p>
+      </div>
+      
+      <!-- Scrollable Content -->
+      <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
 
+      <!-- Upload Zone - Compact -->
       <div
         id="drop-zone"
-        class="glass-panel rounded-3xl p-6 flex flex-col items-center justify-center text-center gap-3 shadow-neu-soft hover:translate-y-[-2px] transition-transform duration-300 cursor-pointer group border-2 border-dashed border-gray-300"
+        class="glass-panel rounded-2xl p-4 flex items-center justify-center text-center gap-2 shadow-neu-soft hover:translate-y-[-1px] transition-transform duration-300 cursor-pointer group border-2 border-dashed border-gray-300"
         role="button"
         tabindex="0"
         aria-label="Upload PDF: drag & drop or click"
       >
-        <div class="w-14 h-14 rounded-full bg-blue-50 text-blue-400 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-400 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
         </div>
-        <div>
-          <h3 class="font-bold text-gray-700">Upload PDF</h3>
+        <div class="text-left">
+          <h3 class="text-sm font-bold text-gray-700">Upload PDF</h3>
           <p class="text-xs text-gray-400">Drag & drop or click</p>
         </div>
 
         <input type="file" id="file-input" accept="application/pdf,.pdf" multiple class="hidden" />
       </div>
 
-      <div class="glass-panel rounded-3xl p-5 flex-1 flex flex-col shadow-neu-soft min-h-0">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-bold text-gray-700">Recent</h3>
-          <button class="text-xs text-indigo-400 hover:text-indigo-600">View All</button>
-        </div>
-        <ul id="papers-list" class="space-y-3 overflow-y-auto min-h-0">
-          <li class="p-3 bg-white/40 rounded-2xl flex items-center gap-3 hover:bg-white/60 transition-colors cursor-pointer border border-transparent hover:border-white/50">
-            <div class="w-8 h-8 rounded-lg bg-red-100 text-red-400 flex items-center justify-center text-xs font-bold">PDF</div>
-            <div class="overflow-hidden">
-              <h4 class="text-sm font-semibold text-gray-700 truncate">No papers uploaded yet</h4>
-              <p class="text-[10px] text-gray-400">Upload PDFs to get started</p>
-            </div>
-          </li>
-        </ul>
-      </div>
-
-      <div class="glass-panel rounded-3xl p-5 shadow-neu-soft h-48 relative overflow-hidden">
-        <h3 class="font-bold text-gray-700 relative z-10">Vector Store</h3>
-        <div id="vector-store-info" class="mt-4 grid grid-cols-2 gap-2 relative z-10">
-          <div class="bg-indigo-50/50 rounded-xl p-2 text-center">
-            <span class="block text-xl font-bold text-indigo-500">0</span>
-            <span class="text-[10px] text-gray-400">Chunks</span>
+      <!-- Memory Bank - Compact Layout -->
+      <div class="glass-panel rounded-2xl p-4 shadow-neu-soft relative overflow-hidden">
+        <h3 class="font-bold text-gray-700 relative z-10 text-sm mb-3">Memory Bank (RAG Vector Store)</h3>
+        
+        <!-- Main stats in 2 columns -->
+        <div id="vector-store-info" class="grid grid-cols-2 gap-2 relative z-10 mb-3">
+          <div class="bg-indigo-50/50 rounded-lg p-2 text-center">
+            <span id="chunk-count" class="block text-lg font-bold text-indigo-500">0</span>
+            <span class="text-xs text-gray-400">Chunks</span>
           </div>
-          <div class="bg-purple-50/50 rounded-xl p-2 text-center">
-            <span class="block text-xl font-bold text-purple-500">0</span>
-            <span class="text-[10px] text-gray-400">Papers</span>
+          <div class="bg-purple-50/50 rounded-lg p-2 text-center">
+            <span id="document-count" class="block text-lg font-bold text-purple-500">0</span>
+            <span class="text-xs text-gray-400">Papers</span>
           </div>
         </div>
-        <div class="mt-4 text-xs text-gray-500 relative z-10">
-          RAG Engine Status: <span id="rag-status" class="text-orange-500">Loading…</span>
+        
+        <!-- Detailed stats in 3 columns -->
+        <div class="grid grid-cols-3 gap-1 relative z-10 mb-2">
+          <div class="bg-green-50/50 rounded p-1 text-center">
+            <span id="storage-usage" class="block text-xs font-bold text-green-600">0KB</span>
+            <span class="text-[10px] text-gray-400">Storage</span>
+          </div>
+          <div class="bg-orange-50/50 rounded p-1 text-center">
+            <span id="avg-chunk-size" class="block text-xs font-bold text-orange-600">0</span>
+            <span class="text-[10px] text-gray-400">Size</span>
+          </div>
+          <div class="bg-blue-50/50 rounded p-1 text-center">
+            <span id="embedding-dims" class="block text-xs font-bold text-blue-600">384</span>
+            <span class="text-[10px] text-gray-400">Dims</span>
+          </div>
         </div>
-        <svg class="absolute bottom-0 left-0 w-full h-20 opacity-30 text-indigo-400" viewBox="0 0 100 40" preserveAspectRatio="none">
+        
+        <div class="text-xs text-gray-500 relative z-10">
+          Status: <span id="rag-status" class="text-orange-500">Loading…</span>
+        </div>
+        
+        <svg class="absolute bottom-0 left-0 w-full h-16 opacity-20 text-indigo-400" viewBox="0 0 100 40" preserveAspectRatio="none">
           <path d="M0 30 Q 20 10 40 25 T 100 15 V 40 H 0 Z" fill="currentColor"></path>
         </svg>
       </div>
-
-            <!-- System Controls Panel -->
-            <div class="glass-panel rounded-3xl p-5 shadow-neu-soft relative overflow-hidden">
-                <h3 class="font-bold text-gray-700 relative z-10 mb-4">System Controls</h3>
-                
-                <!-- Temperature Control -->
-                <div class="mb-4 relative z-10">
-                    <label class="block text-xs font-medium text-gray-600 mb-2">Temperature</label>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500">0</span>
-                        <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.7" 
-                               class="flex-1 h-1 bg-gray-200 rounded-lg appearance-none slider">
-                        <span class="text-xs text-gray-500">1</span>
-                    </div>
-                    <div class="text-xs text-indigo-600 font-medium mt-1">
-                        Value: <span id="temperature-value">0.7</span>
-                    </div>
-                </div>
-
-                <!-- Model Selection -->
-                <div class="mb-4 relative z-10">
-                    <label class="block text-xs font-medium text-gray-600 mb-2">LLM Model</label>
-                    <select id="model-select" class="w-full text-xs border border-gray-200 rounded-lg p-2 bg-white/80 focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
-                        <option value="Llama-3.2-1B-Instruct-q4f32_1-MLC">Llama 3.2 1B (Fast)</option>
-                        <option value="Llama-3.2-3B-Instruct-q4f32_1-MLC">Llama 3.2 3B (Balanced)</option>
-                        <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC">Llama 3.1 8B (Quality)</option>
-                        <option value="Phi-3.5-mini-instruct-q4f32_1-MLC">Phi 3.5 Mini (Efficient)</option>
-                        <option value="gemma-2-2b-it-q4f32_1-MLC">Gemma 2 2B (Google)</option>
-                    </select>
-                    <div class="text-xs text-gray-500 mt-1">
-                        Status: <span id="model-status" class="text-orange-500">Loading...</span>
-                    </div>
-                </div>
-
-                <!-- Quick System Prompts -->
-                <div class="relative z-10">
-                    <label class="block text-xs font-medium text-gray-600 mb-2">Quick Prompts</label>
-                    <select id="system-prompt-select" class="w-full text-xs border border-gray-200 rounded-lg p-2 bg-white/80 focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
-                        <option value="default">Literature Reviewer</option>
-                        <option value="technical">Technical Analyzer</option>
-                        <option value="methodological">Methodology Critic</option>
-                        <option value="comparative">Comparative Researcher</option>
-                        <option value="custom">Custom...</option>
-                    </select>
-                </div>
-
-                <!-- Custom Prompt Modal Trigger -->
-                <button id="edit-prompt-btn" class="mt-3 w-full text-xs bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-2 px-3 rounded-lg hover:shadow-lg transition-all duration-200 relative z-10">
-                    Edit System Prompt
-                </button>
+      <!-- Active Citations Panel - Enhanced for fixed sidebar -->
+      <div id="citations-panel" class="glass-panel rounded-2xl p-4 shadow-neu-soft relative overflow-hidden" style="display: block;">
+        <h3 class="font-bold text-gray-700 relative z-10 mb-3 text-sm flex items-center">
+          <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+          Active Citations
+        </h3>
+        <div id="citations-list" class="space-y-2 relative z-10 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+          <!-- Citations will be populated here -->
+          <div class="text-center text-gray-400 text-xs py-8">
+            <div class="w-12 h-12 mx-auto mb-2 bg-gray-100 rounded-full flex items-center justify-center">
+              📄
             </div>
+            Citations will appear here
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 mt-2 relative z-10">
+          Citations from current response
+        </div>
+      </div>
+      <!-- System Controls Panel - Compact -->
+      <div class="glass-panel rounded-2xl p-4 shadow-neu-soft relative overflow-hidden">
+        <h3 class="font-bold text-gray-700 relative z-10 mb-3 text-sm">System Controls</h3>
+        
+        <!-- Temperature Control -->
+        <div class="mb-3 relative z-10">
+          <label class="block text-xs font-medium text-gray-600 mb-1">Temperature</label>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500 w-4">0</span>
+            <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.7" 
+                   class="flex-1 h-1 bg-gray-200 rounded-lg appearance-none slider">
+            <span class="text-xs text-gray-500 w-4">1</span>
+          </div>
+          <div class="text-xs text-indigo-600 font-medium">
+            <span id="temperature-value">0.7</span>
+          </div>
+        </div>
 
+        <!-- Model Selection -->
+        <div class="mb-3 relative z-10">
+          <label class="block text-xs font-medium text-gray-600 mb-1">LLM Model</label>
+          <select id="model-select" class="w-full text-xs border border-gray-200 rounded-lg p-2 bg-white/80 focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
+            <option value="Llama-3.2-1B-Instruct-q4f32_1-MLC">Llama 3.2 1B (Fast)</option>
+            <option value="Llama-3.2-3B-Instruct-q4f32_1-MLC">Llama 3.2 3B (Balanced)</option>
+            <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC">Llama 3.1 8B (Quality)</option>
+            <option value="Phi-3.5-mini-instruct-q4f32_1-MLC">Phi 3.5 Mini (Efficient)</option>
+            <option value="gemma-2-2b-it-q4f32_1-MLC">Gemma 2 2B (Google)</option>
+          </select>
+          <div class="text-xs text-gray-500 mt-1">
+            <span id="model-status" class="text-orange-500">Loading...</span>
+          </div>
+        </div>
+
+        <!-- Quick System Prompts -->
+        <div class="relative z-10 mb-3">
+          <label class="block text-xs font-medium text-gray-600 mb-1">Quick Prompts</label>
+          <select id="system-prompt-select" class="w-full text-xs border border-gray-200 rounded-lg p-2 bg-white/80 focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
+            <option value="default">Literature Reviewer</option>
+            <option value="technical">Technical Analyzer</option>
+            <option value="methodological">Methodology Critic</option>
+            <option value="comparative">Comparative Researcher</option>
+            <option value="custom">Custom...</option>
+          </select>
+        </div>
+
+        <!-- Custom Prompt Button -->
+        <button id="edit-prompt-btn" class="w-full text-xs bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-2 px-3 rounded-lg hover:shadow-lg transition-all duration-200 relative z-10">
+          Edit System Prompt
+        </button>
+      </div>
+            
+      <!-- Voice Features Panel - Compact -->
+      <div class="glass-panel rounded-2xl p-4 shadow-neu-soft relative overflow-hidden">
+        <h3 class="font-bold text-gray-700 relative z-10 mb-3 text-sm">🎤 Voice Features</h3>
+        
+        <!-- Voice Status -->
+        <div class="mb-3 relative z-10">
+          <div id="voice-status" class="flex items-center justify-center p-2 rounded-lg bg-gray-50">
+            <span class="text-xs text-gray-600">Voice Ready</span>
+          </div>
+        </div>
+        
+        <!-- Hands-Free Mode Toggle -->
+        <div class="mb-3 relative z-10">
+          <label class="flex items-center cursor-pointer justify-center">
+            <input type="checkbox" id="hands-free-toggle" class="sr-only">
+            <div class="relative">
+              <div class="block bg-gray-300 w-8 h-5 rounded-full"></div>
+              <div class="dot absolute left-1 top-0.5 bg-white w-4 h-4 rounded-full transition transform"></div>
+            </div>
+            <span class="ml-2 text-xs text-gray-600">Hands-Free</span>
+          </label>
+        </div>
+        
+        <!-- Voice Controls Grid -->
+        <div class="grid grid-cols-2 gap-2 relative z-10 mb-2">
+          <button id="start-listening-btn" class="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs">
+            🎤 Listen
+          </button>
+          <button id="stop-listening-btn" class="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-xs" disabled>
+            ⏹ Stop
+          </button>
+        </div>
+        
+        <!-- TTS Control -->
+        <button id="read-last-response-btn" class="w-full p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs relative z-10">
+          🔊 Read Response
+        </button>
+      </div>
+
+      </div>
         </aside>
 
     </div>
 
-    <!-- PDF Viewer Modal -->
-    <div id="pdf-viewer-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
-            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 id="pdf-viewer-title" class="text-lg font-bold text-gray-800">Paper Viewer</h3>
-                <button id="close-pdf-viewer" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <!-- PDF Viewer Modal - Responsive -->
+    <div id="pdf-viewer-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-2 md:p-4">
+        <div class="bg-white rounded-lg md:rounded-2xl shadow-2xl w-full max-w-6xl h-[95vh] md:h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-3 md:p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 id="pdf-viewer-title" class="text-base md:text-lg font-bold text-gray-800">Paper Viewer</h3>
+                <button id="close-pdf-viewer" class="p-1.5 md:p-2 rounded-full hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
             </div>
-            <div class="flex-1 p-4">
+            <div class="flex-1 p-2 md:p-4">
                 <iframe id="pdf-viewer-frame" class="w-full h-full border-0 rounded-lg" src=""></iframe>
             </div>
         </div>
     </div>
 
-    <!-- Custom Prompt Modal -->
-    <div id="prompt-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div class="p-6 border-b border-gray-200">
-                <h3 class="text-lg font-bold text-gray-800">Edit System Prompt</h3>
-                <p class="text-sm text-gray-600 mt-1">Customize how the AI behaves and responds</p>
+    <!-- Custom Prompt Modal - Responsive -->
+    <div id="prompt-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-2 md:p-4">
+        <div class="bg-white rounded-xl md:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] md:max-h-[80vh] overflow-hidden">
+            <div class="p-4 md:p-6 border-b border-gray-200">
+                <h3 class="text-base md:text-lg font-bold text-gray-800">Edit System Prompt</h3>
+                <p class="text-xs md:text-sm text-gray-600 mt-1">Customize how the AI behaves and responds</p>
             </div>
             
-            <div class="p-6">
-                <textarea id="custom-prompt-textarea" rows="8" 
+            <div class="p-4 md:p-6">
+                <textarea id="custom-prompt-textarea" rows="6" 
                           class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-transparent resize-none"
                           placeholder="Enter your custom system prompt..."></textarea>
                 <div class="text-xs text-gray-500 mt-2">
@@ -306,11 +395,11 @@
                 </div>
             </div>
             
-            <div class="p-6 border-t border-gray-200 flex gap-3 justify-end">
-                <button id="cancel-prompt-btn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+            <div class="p-4 md:p-6 border-t border-gray-200 flex gap-2 md:gap-3 justify-end">
+                <button id="cancel-prompt-btn" class="px-3 md:px-4 py-2 text-xs md:text-sm text-gray-600 hover:text-gray-800 transition-colors">
                     Cancel
                 </button>
-                <button id="save-prompt-btn" class="px-6 py-2 text-sm bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:shadow-lg transition-all duration-200">
+                <button id="save-prompt-btn" class="px-4 md:px-6 py-2 text-xs md:text-sm bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:shadow-lg transition-all duration-200">
                     Save & Apply
                 </button>
             </div>
