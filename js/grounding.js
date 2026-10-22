@@ -23,6 +23,8 @@ export function cleanModelOutput(response) {
     .replace(/\n+[*#\s]*(references|bibliography|works cited)[*:\s]*\n[\s\S]*$/i, "") // Invented reference lists
     .replace(/^\s*\(?note:[^\n]*$/gim, "") // Meta comments about how the instructions were followed
     .replace(/^\s*\(?(excerpt|extrait)\s*\d+[^\n]{0,40}$/gim, "") // Echoed excerpt labels
+    .replace(/\b(excerpts?|extraits?) \d+(?:\s*(?:,|and|et|&)\s*\d+)*/gi, "the paper") // "According to Excerpt 1"
+    .replace(/(^|[.!?]\s+)the paper/gm, "$1The paper")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
 }
@@ -70,7 +72,7 @@ export async function groundAnswer(response, providedChunks, paperChunks = {}, p
   for (const line of cleanModelOutput(response).split("\n")) {
     const out = [];
     // Sentence ends, but not after an initial ("George G. Malliaras")
-    for (let sentence of line.split(/(?<=[.!?])(?<!\b[A-Z]\.)\s+(?=[A-Z"(*•-])/)) {
+    for (let sentence of line.split(/(?<=[.!?])(?<!\b[A-Z]\.)\s+(?=[A-Z"“(*•\[-])/)) {
       const labels = [...sentence.matchAll(/\[(P\d+)\]/g)].map(m => m[1]);
       sentence = sentence
         .replace(/\s*(?:\b(?:in|by|from|see)\s+)?\[P\d+\](?=\s*(?:\[P\d+\]|[.!?;:)]|$))/g, "")
@@ -81,9 +83,9 @@ export async function groundAnswer(response, providedChunks, paperChunks = {}, p
       if (key.length > 20 && seen.has(key)) continue;
       seen.add(key);
 
-      // Headings and fragments carry no claim
+      // Headings ("COMPARISON OF METHODS") and fragments carry no claim
       const plain = sentence.replace(/[*#•]/g, "").trim();
-      if (plain.length < 25) {
+      if (plain.length < 25 || plain === plain.toUpperCase()) {
         out.push(sentence);
         continue;
       }

@@ -44,7 +44,7 @@ async function rewriteQuery(question, history, papers) {
 ${context ? `\nConversation so far:\n${context}\n` : ""}
 Last question: ${question}
 
-Rewrite the last question as ONE standalone search query in English. Resolve references such as "it" or "this paper" using the paper titles and the conversation. Keep the meaning of the question; do not add topics it does not ask about. Output only the query.`,
+Rewrite the last question as ONE standalone search query in English. Use the conversation only to resolve references such as "it" or "this paper"; if the question is already self-contained, just translate it. Keep its meaning and do not add topics it does not ask about. Output only the query.`,
       { maxTokens: 48, temperature: 0 }
     );
     const query = rewritten.split("\n")[0].replace(/^(search )?query:\s*/i, "").replace(/^["']|["']$/g, "").trim();
@@ -53,6 +53,21 @@ Rewrite the last question as ONE standalone search query in English. Resolve ref
     console.warn("Query rewriting failed:", err);
     return question;
   }
+}
+
+// Interleaves two rankings without duplicates: 1st of each, then 2nd of each...
+function mergeResults(a, b) {
+  const merged = [];
+  const seen = new Set();
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    for (const r of [a[i], b[i]]) {
+      if (r && !seen.has(r.chunk.id)) {
+        seen.add(r.chunk.id);
+        merged.push(r);
+      }
+    }
+  }
+  return merged;
 }
 
 function buildContext(chunks) {
@@ -82,7 +97,7 @@ Instructions:
 2. Copy numbers exactly as they appear in the excerpts. Never compute new numbers.
 3. Ignore excerpts that are unrelated to the question. If none answers it, say so plainly instead of guessing.
 4. Never mention papers, authors or results that are not in the excerpts. The authors of a paper are listed at the top of its first page, not in the text.
-5. Do not add citations or a reference list: sources are attached automatically.
+5. Do not add citations, excerpt numbers or a reference list: sources are attached automatically. Refer to "the paper(s)", never to "the excerpts".
 6. Answer in the language of the question.
 
 Question: ${question}
@@ -106,7 +121,13 @@ export async function answerQuestion(question, { history, paperIds, onStatus, on
   const query = await rewriteQuery(question, history, papers);
 
   onStatus?.("Searching the papers…");
-  const results = await search(query, { paperIds, k: TOP_K, keywordQuery: `${question} ${query}` });
+  // Search with both the rewritten query and the original question: a poor rewrite
+  // (e.g. pulled off-topic by a long previous answer) must not hide the right passage
+  const [rewrittenResults, originalResults] = await Promise.all([
+    search(query, { paperIds, k: TOP_K, keywordQuery: `${question} ${query}` }),
+    search(question, { paperIds, k: TOP_K }),
+  ]);
+  const results = mergeResults(rewrittenResults, originalResults).slice(0, TOP_K);
 
   // First page of the paper(s): needed for "who are the authors", "what is the main idea"...
   const wantsOverview = paperIds.length === 1 || PAPER_LEVEL_QUESTION.test(`${question} ${query}`);

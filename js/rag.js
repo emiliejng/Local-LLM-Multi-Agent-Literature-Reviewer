@@ -40,9 +40,9 @@ export function cosineSimilarity(a, b) {
 // Splits on sentence ends, but not after common abbreviations ("Fig. 3", "et al.", "e.g.")
 export function splitSentences(text) {
   return text
-    .replace(/\b(Fig|Figs|Eq|Eqs|Ref|Refs|al|e\.g|i\.e|vs|approx|No)\.\s/g, "$1. ")
+    .replace(/\b(Fig|Figs|Eq|Eqs|Ref|Refs|al|e\.g|i\.e|vs|approx|No)\.\s/g, "$1.\u00A0")
     .split(/(?<=[.!?])(?<!\b[A-Z]\.)\s+(?=[A-Z(“"])/)
-    .map(s => s.replace(/ /g, " ").trim())
+    .map(s => s.replace(/\u00A0/g, " ").trim())
     .filter(s => s.length > 0);
 }
 
@@ -84,20 +84,23 @@ export async function addPaper(file, extracted, onProgress) {
   const rawChunks = chunkPages(extracted.pages);
   if (rawChunks.length === 0) throw new Error("No text could be extracted (scanned PDF?).");
 
-  const chunks = [];
-  for (let i = 0; i < rawChunks.length; i++) {
-    onProgress?.(i + 1, rawChunks.length);
-    chunks.push({
-      id: `${paper.id}:${i}`,
-      paperId: paper.id,
-      index: i,
-      source: paper.name,
-      page: rawChunks[i].page,
-      text: rawChunks[i].text,
-      embedding: await embed(rawChunks[i].text),
-      tokens: tokenize(rawChunks[i].text),
-    });
+  // One text per call: batching was slower in the browser (padding to the longest text)
+  const embeddings = [];
+  for (const raw of rawChunks) {
+    embeddings.push(await embed(raw.text));
+    onProgress?.(embeddings.length, rawChunks.length);
   }
+
+  const chunks = rawChunks.map((raw, i) => ({
+    id: `${paper.id}:${i}`,
+    paperId: paper.id,
+    index: i,
+    source: paper.name,
+    page: raw.page,
+    text: raw.text,
+    embedding: embeddings[i],
+    tokens: tokenize(raw.text),
+  }));
 
   paper.chunkCount = chunks.length;
   store.papers.push(paper);

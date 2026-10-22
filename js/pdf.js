@@ -5,7 +5,7 @@ const pdfjsLib = window.pdfjsLib;
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-const REFERENCES_HEADING = /^\s*(references( and notes)?|bibliography|literature cited|works cited|références( bibliographiques)?)\s*$/i;
+const REFERENCES_HEADING = /^\s*(\d+\.?\s*)?(references( and notes)?|bibliography|literature cited|works cited|références( bibliographiques)?)\s*$/i;
 
 const rawLines = items => items.map(item => item.str + (item.hasEOL ? "\n" : "")).join("").split("\n");
 
@@ -13,13 +13,14 @@ function pageLines(items) {
   const lines = rawLines(items)
     .map(line => line.replace(/\s+/g, " ").trim())
     // Figure labels and axis ticks come out as tiny lines ("G", "On", "1 µm")
-    .filter(line => line.length >= 12 || /[.!?:]$/.test(line) || /\p{L}{3,}\s+\S*\p{L}{3,}/u.test(line));
+    // (the "References" heading is short too, but removeReferences needs it)
+    .filter(line => line.length >= 12 || /[.!?:]$/.test(line) || /\p{L}{3,}\s+\S*\p{L}{3,}/u.test(line) || REFERENCES_HEADING.test(line));
 
   // Re-join words split across lines (soft hyphens, then "hy-\nphen")
   return lines
     .join("\n")
-    .replace(/­\s*\n\s*/g, "")
-    .replace(/­/g, "")
+    .replace(/\u00AD\s*\n\s*/g, "")
+    .replace(/\u00AD/g, "")
     .replace(/([a-z])-\n([a-z])/g, "$1$2")
     .split("\n");
 }
@@ -38,9 +39,19 @@ function removeReferences(pages) {
   return pages;
 }
 
-function detectTitle(pdfTitle, lines) {
+// The title is usually the largest text of page 1. Rotated text (arXiv's side stamp) is ignored.
+function largestText(items) {
+  const sized = items
+    .filter(item => item.str.trim() && item.transform[1] === 0 && item.transform[2] === 0)
+    .map(item => ({ str: item.str, size: Math.abs(item.transform[3]) }));
+  const max = Math.max(0, ...sized.map(item => item.size));
+  return sized.filter(item => item.size >= max * 0.95).map(item => item.str).join(" ").replace(/\s+/g, " ").trim();
+}
+
+function detectTitle(pdfTitle, fontTitle, lines) {
   const title = (pdfTitle || "").trim();
   if (title.length >= 10 && !/untitled|microsoft|\.docx?$|\.pdf$|\.tex$|^doi|^paper$/i.test(title)) return title;
+  if (fontTitle.length >= 10 && fontTitle.length <= 250 && fontTitle.split(" ").length >= 2) return fontTitle;
 
   for (let i = 0; i < Math.min(15, lines.length); i++) {
     const line = lines[i];
@@ -56,12 +67,15 @@ function detectTitle(pdfTitle, lines) {
 // Authors: the longest run of "Firstname Lastname" items near the top of page 1.
 // Uses raw lines because affiliation markers (¹, †, *) come out as separate fragments
 // that break the author list into pieces. Empty when unsure.
-function detectAuthors(lines) {
-  const namePattern = /^[A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]*){1,3}$/u;
+const ORGANIZATION = /\b(google|brain|research|universit\w*|institut\w*|labs?|inc|ltd|department|school|college|facebook|microsoft|meta|deepmind|openai|corporation|center|centre)\b/i;
+
+function detectAuthors(lines, title = "") {
+  // \p{M} and \p{Sk}: accents that PDFs store as separate marks ("O˘guz")
+  const namePattern = /^[A-Z][\p{L}\p{M}\p{Sk}'’.-]+(?:\s+[A-Z][\p{L}\p{M}\p{Sk}'’.-]*){1,3}$/u;
   const items = lines
     .slice(0, 60)
     .join("\n")
-    .replace(/[\d†‡*§¶]+/g, "")
+    .replace(/[\d†‡*∗⋆★§¶♠♣♦♥◦✝⁰¹²³⁴⁵⁶⁷⁸⁹?]+/g, "") // "?" is how PDF.js renders unknown marker glyphs
     .split(/,|\n|\band\b|&/)
     .map(item => item.trim())
     .filter(Boolean);
@@ -69,7 +83,8 @@ function detectAuthors(lines) {
   let best = [];
   let run = [];
   for (const item of items) {
-    if (namePattern.test(item) && item.split(" ").length <= 4) {
+    // Title lines can look like names ("Knowledge-Intensive NLP Tasks")
+    if (namePattern.test(item) && item.split(" ").length <= 4 && !ORGANIZATION.test(item) && !title.includes(item)) {
       run.push(item);
       if (run.length > best.length) best = [...run];
     } else {
@@ -93,8 +108,12 @@ function removeRepeatedLines(pages) {
   }
 }
 
+// arXiv identifiers encode the first submission date ("arXiv:1706.03762" → 2017); the date on
+// the side stamp is the latest revision. Otherwise: the first standalone year, ignoring identifiers.
 function detectYear(text) {
-  const match = text.match(/\b(19|20)\d{2}\b/);
+  const arxiv = text.match(/arXiv:(\d{2})(\d{2})\.\d{4,5}/);
+  if (arxiv && Number(arxiv[2]) >= 1 && Number(arxiv[2]) <= 12) return `20${arxiv[1]}`;
+  const match = text.replace(/arXiv:\S+/g, "").match(/(?<![\d.])(19|20)\d{2}(?![\d.])/);
   return match && Number(match[0]) <= new Date().getFullYear() ? match[0] : null;
 }
 
@@ -110,19 +129,24 @@ export async function extractPdf(file) {
 
   let pages = [];
   let firstPageRaw = [];
+  let fontTitle = "";
   for (let n = 1; n <= pdf.numPages; n++) {
     const content = await (await pdf.getPage(n)).getTextContent();
-    if (n === 1) firstPageRaw = rawLines(content.items);
+    if (n === 1) {
+      firstPageRaw = rawLines(content.items);
+      fontTitle = largestText(content.items);
+    }
     pages.push({ number: n, lines: pageLines(content.items) });
   }
   const pageCount = pages.length;
 
   // Metadata is read before running headers are removed: they often hold the journal and year
   const firstLines = pages[0]?.lines || [];
+  const title = detectTitle(pdfTitle, fontTitle, firstLines);
   const metadata = {
-    title: detectTitle(pdfTitle, firstLines),
-    authors: detectAuthors(firstPageRaw),
-    year: detectYear(firstLines.join(" ")),
+    title,
+    authors: detectAuthors(firstPageRaw, title || ""),
+    year: detectYear(firstPageRaw.join(" ")),
   };
 
   removeRepeatedLines(pages);
