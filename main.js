@@ -41,10 +41,13 @@ function readAloud(message, button, onDone) {
   if (wasReadingThis) return;
   speakingButton = button;
   button.textContent = "⏹ Stop reading";
-  speak(stripCitations(message.text), () => {
-    button.textContent = "🔊 Read aloud";
-    speakingButton = null;
-    onDone?.();
+  speak(stripCitations(message.text), {
+    language: message.language,
+    onEnd: () => {
+      button.textContent = "🔊 Read aloud";
+      speakingButton = null;
+      onDone?.();
+    },
   });
 }
 
@@ -190,6 +193,16 @@ function wireEvents() {
   });
   els.reviewBtn.addEventListener("click", runLiteratureReview);
   els.micBtn.addEventListener("click", startVoice);
+
+  // Hands-free starts listening right away; unchecking it stops listening and reading
+  els.handsFree.addEventListener("change", () => {
+    if (els.handsFree.checked) {
+      if (!isListening() && !busy) startVoice();
+    } else {
+      stopListening();
+      stopReading();
+    }
+  });
 
   els.dropZone.addEventListener("click", () => els.fileInput.click());
   els.dropZone.addEventListener("dragover", () => els.dropZone.classList.add("ring-2", "ring-indigo-400"));

@@ -50,7 +50,8 @@ Everything runs locally in the browser using **WebGPU**.
 - **Literature review agent**: summarizes each paper from its own passages, then writes a structured synthesis (Introduction, Thematic synthesis, Comparison, Gaps & conclusion)
 - Memory Bank (passages / papers / status)
 - Settings: temperature, model (Llama 3.2 3B or 1B), editable system prompt — applied in real time
-- Voice: Whisper speech-to-text, RMS voice-activity detection, hands-free mode with spoken answers. Answers are read with a local voice matching their language (English or French); the read-aloud button doubles as a stop button (Esc also stops)
+- Answers in the language of the question (French or English), even though the papers are in English
+- Voice: Whisper speech-to-text and RMS voice-activity detection. **Hands-free**: tick it and just talk — listening starts, the question is sent when you stop speaking, the answer is read aloud, then listening resumes. Answers are read with a local voice of the question's language; the read-aloud button doubles as a stop button (Esc also stops)
 
 ---
 
@@ -117,6 +118,7 @@ js/agent.js         # Question answering and literature review pipelines
 js/grounding.js     # Page citations, quoted passages and source check
 js/ui.js            # Chat rendering, citations panel, paper library, PDF viewer
 js/voice.js         # Whisper STT, voice activity detection, text-to-speech
+js/language.js      # French/English detection: answers and voice follow the question's language
 PROJECT_LLM.md      # Full project specifications
 ```
 

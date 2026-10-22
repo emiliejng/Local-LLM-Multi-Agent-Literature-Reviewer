@@ -3,6 +3,7 @@
 
 import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0";
 import { WHISPER_MODEL } from "./config.js";
+import { detectLanguage } from "./language.js";
 
 const SPEECH_RMS = 0.02; // Louder than this counts as speech
 const SILENCE_MS = 1500; // Silence after speech that ends the recording
@@ -106,16 +107,10 @@ if ("speechSynthesis" in window) {
   speechSynthesis.addEventListener("voiceschanged", () => { voices = speechSynthesis.getVoices(); });
 }
 
-function detectLanguage(text) {
-  const count = pattern => (text.toLowerCase().match(pattern) || []).length;
-  const french = count(/\b(le|la|les|des|est|une|et|que|qui|dans|pour|sur|pas|du|ce|cette|avec|sont)\b/g);
-  const english = count(/\b(the|and|is|are|of|to|in|that|for|with|this|it|was|on|by)\b/g);
-  return french > english ? "fr" : "en";
-}
-
 // Prefers voices installed on the device: network voices (e.g. Chrome's "Google US English")
 // send the text to a server, which breaks the app's local-only promise
 function pickVoice(language) {
+  if (voices.length === 0) voices = speechSynthesis.getVoices(); // Chrome loads them lazily
   const region = language === "fr" ? "fr-FR" : "en-US";
   const preferred = PREFERRED_VOICES[language];
   const rank = voice => {
@@ -144,20 +139,22 @@ export function stopSpeaking() {
   if ("speechSynthesis" in window) speechSynthesis.cancel();
 }
 
-// onEnd runs only when the whole text was read, not when the reading was stopped
-export function speak(text, onEnd) {
+// language: that of the question the text answers. Detecting it from the answer itself fails when a
+// French answer quotes English titles and terms. onEnd runs only when the whole text was read.
+export function speak(text, { language, onEnd } = {}) {
   if (!("speechSynthesis" in window)) return;
   stopSpeaking();
   const id = speechId;
   const clean = speakable(text);
-  const voice = pickVoice(detectLanguage(clean));
+  language ??= detectLanguage(clean);
+  const voice = pickVoice(language);
 
   // One utterance per sentence: Chrome cuts long utterances after ~15 seconds
   const sentences = clean.match(/[^.!?]+[.!?]*/g) || [clean];
   sentences.forEach((sentence, i) => {
     const utterance = new SpeechSynthesisUtterance(sentence.trim());
     if (voice) utterance.voice = voice;
-    utterance.lang = voice?.lang || (detectLanguage(clean) === "fr" ? "fr-FR" : "en-US");
+    utterance.lang = voice?.lang || (language === "fr" ? "fr-FR" : "en-US");
     if (i === sentences.length - 1) utterance.onend = () => id === speechId && onEnd?.();
     speechSynthesis.speak(utterance);
   });
