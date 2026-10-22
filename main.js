@@ -7,7 +7,7 @@ import { store, initEmbedder, isEmbedderReady, addPaper, removePaper } from "./j
 import { loadModel, isModelReady, settings } from "./js/llm.js";
 import { answerQuestion, literatureReview, isLiteratureReviewRequest } from "./js/agent.js";
 import { stripCitations } from "./js/grounding.js";
-import { listen, stopListening, isListening, speak } from "./js/voice.js";
+import { listen, stopListening, isListening, speak, stopSpeaking } from "./js/voice.js";
 import * as ui from "./js/ui.js";
 
 const { els } = ui;
@@ -25,6 +25,29 @@ function showCitation(citation) {
   if (citation) ui.showCitation(citation);
 }
 
+// --- Reading answers aloud: one answer at a time, the button doubles as a stop button ---
+
+let speakingButton = null;
+
+function stopReading() {
+  stopSpeaking();
+  if (speakingButton) speakingButton.textContent = "🔊 Read aloud";
+  speakingButton = null;
+}
+
+function readAloud(message, button, onDone) {
+  const wasReadingThis = speakingButton === button;
+  stopReading();
+  if (wasReadingThis) return;
+  speakingButton = button;
+  button.textContent = "⏹ Stop reading";
+  speak(stripCitations(message.text), () => {
+    button.textContent = "🔊 Read aloud";
+    speakingButton = null;
+    onDone?.();
+  });
+}
+
 async function sendMessage(text = els.chatInput.value.trim()) {
   if (!text || busy) return;
   if (!isModelReady()) {
@@ -32,10 +55,11 @@ async function sendMessage(text = els.chatInput.value.trim()) {
     return;
   }
   busy = true;
+  stopReading();
   els.chatInput.value = "";
   ui.addUserMessage(text);
 
-  const bubble = ui.createAssistantMessage({ onCitation: showCitation, onSpeak: m => speak(stripCitations(m.text)) });
+  const bubble = ui.createAssistantMessage({ onCitation: showCitation, onSpeak: readAloud });
   const options = {
     history: [...history],
     paperIds: selectedPaperIds(),
@@ -48,11 +72,11 @@ async function sendMessage(text = els.chatInput.value.trim()) {
       ? await literatureReview(text, options)
       : await answerQuestion(text, options);
 
-    bubble.finish(message);
+    const speakButton = bubble.finish(message);
     ui.updateCitationsPanel([...message.citations, ...(message.notes || []).flatMap(n => n.citations)], showCitation);
     history.push({ role: "user", content: text }, { role: "assistant", content: stripCitations(message.text) });
 
-    if (els.handsFree.checked) speak(stripCitations(message.text), () => els.handsFree.checked && startVoice());
+    if (els.handsFree.checked) readAloud(message, speakButton, () => els.handsFree.checked && startVoice());
   } catch (err) {
     console.error("Chat error:", err);
     bubble.fail(`⚠️ Generation failed: ${err.message}. Try again, or switch to the 1B model in Settings if memory is low.`);
@@ -125,6 +149,7 @@ async function startVoice() {
     stopListening();
     return;
   }
+  stopReading();
   try {
     const text = await listen(state => ui.setStatus(els.voiceStatus, ...VOICE_STATES[state]));
     ui.setStatus(els.voiceStatus, "", "ready");
@@ -203,7 +228,9 @@ function wireEvents() {
     });
   }
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") [els.pdfModal, els.citationModal].forEach(ui.closeModal);
+    if (e.key !== "Escape") return;
+    [els.pdfModal, els.citationModal].forEach(ui.closeModal);
+    stopReading();
   });
 }
 

@@ -88,12 +88,77 @@ export function stopListening() {
   recording?.stop();
 }
 
+// --- Text-to-speech ---
+// The voice must match the language of the text: without it the browser uses the system
+// default voice (French on a French Mac) and reads English with a French accent.
+
+// Natural-sounding voices, best first (macOS, Windows, Chrome). Novelty voices are excluded,
+// including their localized names on a French system ("Bonnes nouvelles", "Bouffon"...).
+const PREFERRED_VOICES = {
+  en: ["Samantha", "Ava", "Allison", "Daniel", "Karen", "Moira", "Tessa", "Serena", "Alex", "Tom", "Microsoft Aria", "Microsoft Jenny", "Microsoft Guy", "Google US English", "Google UK English Female"],
+  fr: ["Thomas", "Amélie", "Audrey", "Aurélie", "Marie", "Microsoft Denise", "Microsoft Henri", "Google français"],
+};
+const NOVELTY_VOICES = /albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoi|whisper|wobble|zarvox|deranged|hysterical|nouvelles|bouffon|bulles|cloches|murmure|orgue|violoncelles|grandma|grandpa|junior|ralph|fred|kathy|rocko/i;
+
+let voices = [];
+if ("speechSynthesis" in window) {
+  voices = speechSynthesis.getVoices();
+  speechSynthesis.addEventListener("voiceschanged", () => { voices = speechSynthesis.getVoices(); });
+}
+
+function detectLanguage(text) {
+  const count = pattern => (text.toLowerCase().match(pattern) || []).length;
+  const french = count(/\b(le|la|les|des|est|une|et|que|qui|dans|pour|sur|pas|du|ce|cette|avec|sont)\b/g);
+  const english = count(/\b(the|and|is|are|of|to|in|that|for|with|this|it|was|on|by)\b/g);
+  return french > english ? "fr" : "en";
+}
+
+// Prefers voices installed on the device: network voices (e.g. Chrome's "Google US English")
+// send the text to a server, which breaks the app's local-only promise
+function pickVoice(language) {
+  const region = language === "fr" ? "fr-FR" : "en-US";
+  const preferred = PREFERRED_VOICES[language];
+  const rank = voice => {
+    const index = preferred.findIndex(name => voice.name.startsWith(name));
+    return index === -1 ? 0 : preferred.length - index;
+  };
+  const score = voice =>
+    (voice.localService ? 100 : 0) +
+    rank(voice) * 5 +
+    (/premium|enhanced|natural/i.test(voice.name) ? 3 : 0) +
+    (voice.lang.replace("_", "-") === region ? 1 : 0);
+  return voices
+    .filter(v => v.lang.toLowerCase().startsWith(language) && !NOVELTY_VOICES.test(v.name))
+    .sort((a, b) => score(b) - score(a))[0];
+}
+
+// Markdown, bullets and emojis are read out loud literally otherwise
+const speakable = text => text.replace(/[*#•⟦⟧]/g, " ").replace(/\p{Extended_Pictographic}/gu, "").replace(/\s+/g, " ").trim();
+
+let speechId = 0;
+
+export const isSpeaking = () => "speechSynthesis" in window && (speechSynthesis.speaking || speechSynthesis.pending);
+
+export function stopSpeaking() {
+  speechId++;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
+// onEnd runs only when the whole text was read, not when the reading was stopped
 export function speak(text, onEnd) {
-  if (!("speechSynthesis" in window)) return onEnd?.();
-  speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1;
-  utterance.onend = () => onEnd?.();
-  utterance.onerror = () => onEnd?.();
-  speechSynthesis.speak(utterance);
+  if (!("speechSynthesis" in window)) return;
+  stopSpeaking();
+  const id = speechId;
+  const clean = speakable(text);
+  const voice = pickVoice(detectLanguage(clean));
+
+  // One utterance per sentence: Chrome cuts long utterances after ~15 seconds
+  const sentences = clean.match(/[^.!?]+[.!?]*/g) || [clean];
+  sentences.forEach((sentence, i) => {
+    const utterance = new SpeechSynthesisUtterance(sentence.trim());
+    if (voice) utterance.voice = voice;
+    utterance.lang = voice?.lang || (detectLanguage(clean) === "fr" ? "fr-FR" : "en-US");
+    if (i === sentences.length - 1) utterance.onend = () => id === speechId && onEnd?.();
+    speechSynthesis.speak(utterance);
+  });
 }

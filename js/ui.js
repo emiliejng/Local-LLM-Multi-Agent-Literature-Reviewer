@@ -175,7 +175,7 @@ export function createAssistantMessage({ onCitation, onSpeak }) {
       speakBtn.className = "mt-2 text-gray-400 hover:text-indigo-500 text-xs";
       speakBtn.title = "Read aloud";
       speakBtn.textContent = "🔊 Read aloud";
-      speakBtn.addEventListener("click", () => onSpeak(message));
+      speakBtn.addEventListener("click", () => onSpeak(message, speakBtn));
       body.appendChild(speakBtn);
 
       // Chips in the answer refer to message.citations, chips in a note to that note's citations
@@ -187,6 +187,7 @@ export function createAssistantMessage({ onCitation, onSpeak }) {
         onCitation(citations[Number(chip.dataset.cite)]);
       });
       scrollToBottom();
+      return speakBtn;
     },
     fail(text) {
       status.remove();

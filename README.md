@@ -50,7 +50,7 @@ Everything runs locally in the browser using **WebGPU**.
 - **Literature review agent**: summarizes each paper from its own passages, then writes a structured synthesis (Introduction, Thematic synthesis, Comparison, Gaps & conclusion)
 - Memory Bank (passages / papers / status)
 - Settings: temperature, model (Llama 3.2 3B or 1B), editable system prompt — applied in real time
-- Voice: Whisper speech-to-text, RMS voice-activity detection, hands-free mode with spoken answers
+- Voice: Whisper speech-to-text, RMS voice-activity detection, hands-free mode with spoken answers. Answers are read with a local voice matching their language (English or French); the read-aloud button doubles as a stop button (Esc also stops)
 
 ---
 
