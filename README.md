@@ -30,13 +30,12 @@ It can also generate a **concise Literature Review** with **citations** (the exa
 This app implements an end-to-end **RAG pipeline in Vanilla JavaScript**:
 
 1. **Upload PDFs** (drag & drop)
-2. Extract text with **PDF.js**
-3. Split text into chunks (default: **400 chars**, **80 overlap**)
-4. Create embeddings with **Transformers.js** (`Xenova/all-MiniLM-L6-v2`)
-5. Store chunks + vectors in a client-side **Vector DB** (`state.vectorStore`)
-6. Retrieve top chunks using **cosine similarity**
-7. Inject retrieved context into a **WebLLM** prompt
-8. Show **citations** for every answer
+2. Extract text page by page with **PDF.js**: figure labels, running headers and the **reference list are removed**
+3. Split each page into chunks of **whole sentences** (≤ 700 chars), so every chunk keeps its **page number**
+4. Create embeddings with **Transformers.js** (`Xenova/all-MiniLM-L6-v2`) and store them in a client-side **Vector DB**
+5. **Hybrid retrieval**: cosine similarity (pure JS) + BM25 keywords, merged by reciprocal rank fusion. Follow-up and non-English questions are first rewritten into a standalone English query; the paper's first page (title, authors, abstract) is added for questions about the paper as a whole
+6. **WebLLM** answers from the retrieved excerpts only (streamed token by token)
+7. **Grounding**: each sentence of the answer is matched to the passage that supports it and cited as **[page]**, with the exact quoted sentence; figures absent from the sources are flagged
 
 Everything runs locally in the browser using **WebGPU**.
 
@@ -45,12 +44,13 @@ Everything runs locally in the browser using **WebGPU**.
 ## Features
 
 - 100% client-side: **no server**, **no uploads**
-- Multi-PDF ingestion (drag & drop)
-- Chunking + embeddings + cosine similarity retrieval (pure JS)
-- WebLLM chat with history
-- Citations UI (shows which chunks support the answer)
-- Memory bank view (chunk count / indexing status)
-- Optional voice mode (TTS / STT / VAD)
+- Multi-PDF ingestion, paper selector ("All papers" or one paper)
+- Citations with **page numbers**: click one to read the quoted passage and open the PDF at that page
+- Source check under every answer (sourced statements, unverified figures)
+- **Literature review agent**: summarizes each paper from its own passages, then writes a structured synthesis (Introduction, Thematic synthesis, Comparison, Gaps & conclusion)
+- Memory Bank (passages / papers / status)
+- Settings: temperature, model (Llama 3.2 3B or 1B), editable system prompt — applied in real time
+- Voice: Whisper speech-to-text, RMS voice-activity detection, hands-free mode with spoken answers
 
 ---
 
@@ -86,21 +86,21 @@ python -m http.server 8000
 
 ## Usage Guide
 
-### 1. Initialize Model
-- Click "Initialize Model"
-- Wait for WebLLM + embedding model to load
+### 1. Wait for the model
+- The model loads automatically (Llama 3.2 3B, ~1.5 GB the first time, then cached)
+- Low on GPU memory? Pick Llama 3.2 1B in **Settings**
 
 ### 2. Upload PDFs
 - Drag & drop one or more PDF papers
 - Wait for indexing: PDF → text → chunks → embeddings
 
 ### 3. Ask Questions
-- Type a question about your papers
-- The app retrieves the most relevant chunks and shows citations
+- Type a question about your papers (any language), or use the mic
+- Each statement of the answer is followed by its page, e.g. `p. 4`; click it to see the exact passage and open the PDF there
 
 ### 4. Generate a Literature Review
-- Ask: "Generate a concise literature review about …"
-- The agent synthesizes themes across papers with citations
+- Click **📚 Literature review**, or ask "Generate a concise literature review about …"
+- The agent summarizes each selected paper, then synthesizes themes across them, with page citations
 
 ---
 
@@ -108,24 +108,30 @@ python -m http.server 8000
 
 ```
 index.html          # UI (Tailwind) + layout
-main.js             # RAG engine + WebLLM chat + citations (+ optional audio)
+main.js             # Entry point: wires the UI to the modules below
+js/config.js        # Models, chunking, retrieval and prompt settings
+js/pdf.js           # PDF.js extraction: pages, noise and reference-list removal, title/authors
+js/rag.js           # Chunking, embeddings, vector store, cosine similarity, BM25, hybrid search
+js/llm.js           # WebLLM loading and streaming completions
+js/agent.js         # Question answering and literature review pipelines
+js/grounding.js     # Page citations, quoted passages and source check
+js/ui.js            # Chat rendering, citations panel, paper library, PDF viewer
+js/voice.js         # Whisper STT, voice activity detection, text-to-speech
 PROJECT_LLM.md      # Full project specifications
-images/             # screenshot.png, rag-demo.gif
 ```
 
 ---
 
 ## Configuration
 
-Edit the constants in `main.js`:
+Edit the constants in `js/config.js`:
 
 ```javascript
-const CHUNK_SIZE = 400;
-const CHUNK_OVERLAP = 80;
-const TOP_K_CHUNKS = 8;
-
-const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
-const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+export const CHUNK_MAX_CHARS = 700;      // whole sentences, never across pages
+export const TOP_K = 6;                  // passages retrieved per question
+export const SUPPORT_THRESHOLD = 0.3;    // minimum similarity for a citation
+export const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
+export const DEFAULT_MODEL = "Llama-3.2-3B-Instruct-q4f32_1-MLC";
 ```
 
 ---
@@ -134,3 +140,4 @@ const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
 
 - **Privacy:** all processing happens locally in your browser. No data is sent to external servers.
 - **Performance:** WebGPU is required for good speed. Desktop browsers work best.
+- **After an update:** hard-reload the page (Cmd/Ctrl+Shift+R) so the browser does not keep old JavaScript modules in cache.
