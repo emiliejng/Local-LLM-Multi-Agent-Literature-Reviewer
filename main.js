@@ -23,7 +23,7 @@ const MAX_MB = 25;
 const MIN_SIMILARITY_THRESHOLD = 0.15; // Seuil plus élevé pour plus de précision
 const MAX_CONTEXT_TOKENS = 3000; // Plus de contexte pour les modèles plus grands
 const CITATION_SIMILARITY_THRESHOLD = 0.3; // Seuil pour citations de haute confiance
-const MAX_CHAT_HISTORY = 10;
+const MAX_CHAT_HISTORY = 6; // Recent messages kept in the prompt (older ones would overflow the context window)
 
 // Voice Features Configuration
 const WHISPER_MODEL = "Xenova/whisper-tiny";
@@ -63,22 +63,14 @@ const AVAILABLE_MODELS = {
 };
 
 // System Control Variables
-let currentTemperature = 0.7;
+let currentTemperature = 0.3; // Low by default: factual answers grounded in the papers
 let systemPrompts = {
-  default: "You are an expert Academic Researcher and Literature Reviewer specializing in precise citation and evidence-based analysis. " +
-           "CRITICAL INSTRUCTIONS: " +
-           "1. You MUST ONLY use information from the uploaded PDF documents provided in the DOCUMENT CONTEXT section. " +
-           "2. NEVER invent, assume, or reference papers, data, or information not explicitly provided in the context. " +
-           "3. For EVERY factual claim, provide an exact citation using [Source: filename - Chunk X] format. " +
-           "4. IMPORTANT: When citing papers, use the paper titles and authors provided in the context (e.g., 'Paper Title by Authors (Year)'). " +
-           "5. When quoting or referencing specific information, include the exact passage in quotes followed by the citation with paper details. " +
-           "6. If information spans multiple chunks, cite all relevant sources with their paper titles and authors. " +
-           "7. If no relevant context is provided, clearly state: 'This question requires document uploads to provide an evidence-based answer.' " +
-           "8. When synthesizing information across documents, explicitly state the paper titles and authors being compared. " +
-           "9. For numerical data, statistics, or specific findings, always include the exact citation with paper information. " +
-           "10. Structure responses with clear sections: Summary, Key Findings (with full citations), Analysis (with full citations), and Conclusion. " +
-           "11. If you cannot find specific information in the provided documents, explicitly state what is missing and what documents would be needed. " +
-           "12. Always prefer citing with paper titles and authors over just filenames when this information is provided in the context.",
+  default: "You are an academic research assistant helping a user review scientific papers. " +
+           "When DOCUMENT EXCERPTS are provided, answer ONLY from them, copy numbers exactly, " +
+           "and say clearly when the excerpts do not contain the answer. Sources are attached automatically: do not write citations or reference lists. " +
+           "Never invent papers, authors, results, numbers or citations. " +
+           "When no excerpts are provided, you may discuss the topic in general terms, but say it is general knowledge and do not cite any paper. " +
+           "Write clearly and concisely, in the user's language.",
   
   technical: "You are a Technical Research Analyst specializing in deep technical analysis of research papers with precise citation requirements. " +
              "CRITICAL CITATION INSTRUCTIONS: " +
@@ -259,9 +251,13 @@ function extractPaperMetadata(text, pdfMetadata = {}) {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   const firstPageText = lines.slice(0, 100).join(' ');
   
-  // 1. Extract title - try PDF metadata first, then heuristics
-  if (pdfMetadata.title && pdfMetadata.title.trim()) {
-    metadata.title = pdfMetadata.title.trim();
+  // Wrong metadata is worse than none: the model repeats it as fact.
+  // Every heuristic below stays conservative and leaves the field empty when unsure.
+
+  // 1. Extract title - try PDF metadata first (skipping editor junk), then heuristics
+  const pdfTitle = (pdfMetadata.title || "").trim();
+  if (pdfTitle.length >= 10 && !/untitled|microsoft|\.docx?$|\.pdf$|\.tex$|^doi|^paper$/i.test(pdfTitle)) {
+    metadata.title = pdfTitle;
   } else {
     // Find title as first substantial line (not header/footer)
     for (let i = 0; i < Math.min(15, lines.length); i++) {
@@ -276,15 +272,14 @@ function extractPaperMetadata(text, pdfMetadata = {}) {
     }
   }
   
-  // 2. Extract authors using multiple patterns
+  // 2. Extract authors - only from an explicit "Authors:" / "by" line.
+  // (Matching any "Firstname Lastname" pair picked up title words such as "Deep Learning".)
   const authorPatterns = [
-    /(?:authors?|by)[:\s]+(.*?)(?:\n|\r|abstract|introduction|keywords|email|affiliation)/is,
-    /^([A-Z][a-z]+\s+[A-Z][a-z-]+(?:[\s,]+(?:and\s+)?[A-Z][a-z]+\s+[A-Z][a-z-]+)*)/m,
-    /([A-Z][a-z]+\s+[A-Z][a-z-]+(?:[\s,]+(?:and\s+)?[A-Z][a-z]+\s+[A-Z][a-z-]+){0,4}).*?(?:university|institut|department)/i
+    /\b(?:authors?:|by)\s+([^\n]{5,200})/,
   ];
-  
+
   for (const pattern of authorPatterns) {
-    const match = firstPageText.match(pattern);
+    const match = lines.slice(0, 20).join('\n').match(pattern);
     if (match && match[1]) {
       const authorText = match[1].trim();
       const authors = authorText
@@ -305,9 +300,10 @@ function extractPaperMetadata(text, pdfMetadata = {}) {
     }
   }
   
-  // 3. Extract year
-  const yearMatch = text.match(/\b(20\d{2}|19\d{2})\b/);
-  if (yearMatch) {
+  // 3. Extract year - first page only (later years come from cited references), never in the future
+  const currentYear = new Date().getFullYear();
+  const yearMatch = firstPageText.match(/\b(20\d{2}|19\d{2})\b/);
+  if (yearMatch && Number(yearMatch[1]) <= currentYear) {
     metadata.year = yearMatch[1];
   }
   
@@ -360,7 +356,8 @@ async function extractTextFromPDF(file) {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    fullText += textContent.items.map((item) => item.str).join(" ") + "\n";
+    // Keep line breaks so title/author detection can work line by line
+    fullText += textContent.items.map((item) => item.str + (item.hasEOL ? "\n" : " ")).join("") + "\n";
   }
   
   // Extract paper metadata from content
@@ -557,7 +554,7 @@ async function searchSimilarChunks(query) {
           index, 
           confidenceLevel,
           chunkId: `${chunk.source.replace(/\.[^/.]+$/, "")}-chunk-${chunk.chunkIndex || index}`,
-          citationTag: `[Source: ${chunk.source} - Chunk ${chunk.chunkIndex || index + 1}]`
+          citationTag: `[Source: ${chunk.source} - Chunk ${chunk.chunkIndex + 1}]`
         };
       })
       .filter(result => result.similarity >= MIN_SIMILARITY_THRESHOLD)
@@ -897,46 +894,196 @@ function removePaper(paperIndex) {
 window.viewPdf = viewPdf;
 window.removePaper = removePaper;
 
-// --- Anti-hallucination validation function ---
-function validateResponse(response, uploadedPapers, relevantChunks) {
-  const validation = {
-    hasWarnings: false,
-    warning: ""
-  };
-  
-  // Check for potential paper count hallucination
-  const paperCountRegex = /\b(\d+)\s+(papers?|documents?|studies?)\b/gi;
-  const matches = response.match(paperCountRegex);
-  
-  if (matches) {
-    const actualPaperCount = uploadedPapers.length;
-    
-    matches.forEach(match => {
-      const numbers = match.match(/\d+/);
-      if (numbers) {
-        const mentionedCount = parseInt(numbers[0]);
-        if (mentionedCount > actualPaperCount) {
-          validation.hasWarnings = true;
-          validation.warning = `⚠️ VALIDATION WARNING: Response mentions ${mentionedCount} papers, but only ${actualPaperCount} papers are uploaded. The AI may have hallucinated additional papers.`;
-        }
+// --- Grounding (anti-hallucination) ---
+// The model never writes citations itself: small models invent or misplace them.
+// After generation, each sentence is matched to the closest passage the model actually
+// received (cosine similarity on MiniLM embeddings) and gets that passage's citation tag.
+// Figures are checked against the passages and invented reference lists are removed.
+const CITATION_REGEX = /\[Source: ([^\]]+?) - Chunk (\d+)\]/g;
+const NUMBER_REGEX = /\d+(?:[.,]\d+)*/g;
+const SENTENCE_SUPPORT_THRESHOLD = 0.3; // Below this similarity, no passage supports the sentence
+const SECOND_SOURCE_MARGIN = 0.08; // Another paper scoring this close to the best one is cited too
+
+function citationTag(chunk) {
+  return `[Source: ${chunk.source} - Chunk ${chunk.chunkIndex + 1}]`;
+}
+
+// "1,200" and "1200" are the same figure; "87,5" and "87.5" too
+function normalizeNumber(raw) {
+  return /^\d{1,3}(,\d{3})+$/.test(raw) ? raw.replace(/,/g, "") : raw.replace(",", ".");
+}
+
+async function embedText(text) {
+  const output = await embedder(text, { pooling: "mean", normalize: true });
+  return Array.from(output.data);
+}
+
+function cleanModelOutput(response) {
+  return response
+    .replace(/\[Source:[^\]]*\]/g, "") // Model-written tags, real or placeholder
+    .replace(/\n+[*#\s]*(references|bibliography|works cited)[*:\s]*\n[\s\S]*$/i, "") // Invented reference lists
+    .replace(/^\s*\(?note:[^\n]*$/gim, "") // Meta comments about how the instructions were followed
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+// paperChunks maps a label such as "P1" to that paper's chunks, for sentences the model tagged [P1]
+async function groundAnswer(response, providedChunks, paperChunks = {}) {
+  const seen = new Set();
+  let supported = 0;
+  let unsupported = 0;
+  const lines = [];
+
+  for (const line of cleanModelOutput(response).split("\n")) {
+    const out = [];
+    for (let sentence of line.split(/(?<=[.!?])\s+(?=[A-Z"(*•-])/)) {
+      const labels = [...sentence.matchAll(/\[(P\d+)\]/g)].map(m => m[1]);
+      sentence = sentence.replace(/\s*(?:\b(?:in|by|from|see)\s+)?\[P\d+\]/g, "");
+
+      // Small models repeat themselves
+      const key = sentence.trim().toLowerCase();
+      if (key.length > 20 && seen.has(key)) continue;
+      seen.add(key);
+
+      // Headings and fragments carry no claim
+      const plain = sentence.replace(/[*#•]/g, "").trim();
+      if (plain.length < 25 || !embedder) {
+        out.push(sentence);
+        continue;
       }
-    });
+
+      const labelled = labels.flatMap(label => paperChunks[label] || []);
+      const pool = (labelled.length > 0 ? labelled : providedChunks).filter(c => c.embedding);
+      // Best passage per paper, so a sentence comparing two papers can cite both
+      const vector = await embedText(plain);
+      const bestPerPaper = new Map();
+      for (const chunk of pool) {
+        const score = cosineSimilarity(vector, chunk.embedding);
+        if (score > (bestPerPaper.get(chunk.source)?.score ?? 0)) bestPerPaper.set(chunk.source, { chunk, score });
+      }
+      const ranked = [...bestPerPaper.values()].sort((a, b) => b.score - a.score);
+      const topScore = ranked[0]?.score ?? 0;
+      const cited = ranked
+        .filter(r => r.score >= SENTENCE_SUPPORT_THRESHOLD && r.score >= topScore - SECOND_SOURCE_MARGIN)
+        .slice(0, 2);
+
+      if (cited.length > 0) {
+        out.push(`${sentence.trimEnd()} ${cited.map(r => citationTag(r.chunk)).join(" ")}`);
+        supported++;
+      } else {
+        out.push(sentence);
+        unsupported++;
+      }
+    }
+    lines.push(out.join(" "));
   }
-  
-  // Check for mentions of papers not in uploaded list
-  const uploadedNames = uploadedPapers.map(p => p.name.toLowerCase().replace(/\.pdf$/, ''));
-  const authorPattern = /\b[A-Z][a-z]+\s+(?:et\s+al\.?|&\s+[A-Z][a-z]+|and\s+[A-Z][a-z]+)/g;
-  const authorMatches = response.match(authorPattern);
-  
-  if (authorMatches && relevantChunks.length === 0) {
-    validation.hasWarnings = true;
-    validation.warning = `⚠️ VALIDATION WARNING: Response contains author citations but no relevant document context was provided. This may indicate hallucination.`;
+  const text = lines.join("\n").replace(/\n{3,}/g, "\n\n");
+
+  const sourceNumbers = new Set(
+    (providedChunks.map(c => c.text).join(" ").match(NUMBER_REGEX) || []).map(normalizeNumber)
+  );
+  const unsupportedNumbers = new Set();
+  for (const raw of text.replace(CITATION_REGEX, "").match(NUMBER_REGEX) || []) {
+    // Small integers are list numbering or counts, not reported findings
+    if (!/[.,]/.test(raw) && Number(raw) < 10) continue;
+    if (!sourceNumbers.has(normalizeNumber(raw))) unsupportedNumbers.add(raw);
   }
-  
-  return validation;
+
+  // Mentions of more papers than were uploaded are invented
+  let inventedPaperCount = null;
+  for (const match of text.matchAll(/\b(\d+)\s+(?:papers?|documents?|studies|articles?)\b/gi)) {
+    if (Number(match[1]) > uploadedPapers.length) inventedPaperCount = Number(match[1]);
+  }
+
+  return { text, supported, unsupported, unsupportedNumbers: [...unsupportedNumbers], inventedPaperCount };
+}
+
+function formatGroundingReport(check) {
+  const lines = [];
+  if (check.supported > 0) {
+    lines.push(`✅ ${check.supported} statement(s) linked to the passage that supports them (citations computed by semantic match, not written by the model).`);
+  } else {
+    lines.push("⚠️ No statement matches a passage: this answer is not backed by your documents.");
+  }
+  if (check.unsupported > 0) {
+    lines.push(`ℹ️ ${check.unsupported} statement(s) matched no passage (general wording, or not supported by your papers).`);
+  }
+  if (check.unsupportedNumbers.length > 0) {
+    lines.push(`⚠️ Figures not found in the passages (verify before using): ${check.unsupportedNumbers.join(", ")}.`);
+  }
+  if (check.inventedPaperCount !== null) {
+    lines.push(`⚠️ The answer mentions ${check.inventedPaperCount} papers, but only ${uploadedPapers.length} are uploaded.`);
+  }
+  return `\n\n🔎 SOURCE CHECK\n${lines.join("\n")}`;
 }
 
 // --- Chat ---
+const CONTEXT_CHAR_BUDGET = 4500; // Retrieved passages; keeps prompt + answer inside a 4k-token window
+const HISTORY_MESSAGE_MAX_CHARS = 600;
+
+// System prompt + recent turns, shortened so the window stays free for the retrieved passages
+function buildRecentHistory() {
+  const recent = conversationHistory.slice(1, -1).slice(-MAX_CHAT_HISTORY).map(m => ({
+    role: m.role,
+    content: m.content.length > HISTORY_MESSAGE_MAX_CHARS ? m.content.slice(0, HISTORY_MESSAGE_MAX_CHARS) + "…" : m.content,
+  }));
+  while (recent.length > 0 && recent[0].role !== "user") recent.shift();
+  return [conversationHistory[0], ...recent];
+}
+
+function buildContext(chunks) {
+  const used = [];
+  let context = "";
+  for (const chunk of chunks) {
+    const entry = `[Excerpt ${used.length + 1} from "${chunk.paperTitle}"]\n"${chunk.text}"\n\n`;
+    if (used.length > 0 && context.length + entry.length > CONTEXT_CHAR_BUDGET) break;
+    context += entry;
+    used.push(chunk);
+  }
+  return { context, used };
+}
+
+function buildGroundedPrompt(question, context) {
+  const paperList = uploadedPapers.map(p => `- ${paperLabel(p)}`).join("\n");
+  // The question appears before and after the excerpts: small models otherwise drift to the last excerpt
+  return `Question: ${question}
+
+UPLOADED PAPERS:
+${paperList}
+
+DOCUMENT EXCERPTS (the only allowed sources):
+${context}
+Instructions:
+1. Answer the question directly in your own words, in 2 to 6 sentences, using ONLY the excerpts. Do not copy the excerpt list.
+2. Copy numbers exactly as they appear in the excerpts. Never compute new numbers (differences, averages, percentages).
+3. Ignore excerpts that are unrelated to the question. If none answers it, say so plainly instead of guessing.
+4. Never mention papers, authors or results that are not in the excerpts.
+5. Do not add citations or a reference list: sources are attached automatically.
+
+Question: ${question}
+Answer:`;
+}
+
+async function generateReply(messages) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const reply = await engine.chat.completions.create({
+        messages,
+        temperature: currentTemperature,
+        max_tokens: 1024,
+      });
+      const content = reply.choices[0].message.content;
+      if (content && content.trim().length >= 10) return content.trim();
+      lastError = new Error("Response too short or empty");
+    } catch (err) {
+      lastError = err;
+      console.warn(`⚠️ Generation attempt ${attempt + 1} failed:`, err.message);
+    }
+  }
+  throw lastError;
+}
+
 async function sendChatMessage() {
   const text = chatInput.value.trim();
   if (!text || isTyping) return;
@@ -947,179 +1094,62 @@ async function sendChatMessage() {
 
   conversationHistory.push({ role: "user", content: text });
   isTyping = true;
-  
-  // Show typing indicator
+
   const typingIndicator = createTypingIndicator();
   chatHistoryContainer.appendChild(typingIndicator);
   scrollToBottom();
 
   try {
     let aiResponseText = "";
+    const multiPaperTask = uploadedPapers.length > 0 ? detectMultiPaperTask(text) : null;
 
-    if (engine) {
-      // Enhanced error handling for search
+    if (!engine) {
+      aiResponseText = generateNoModelFallback(text, uploadedPapers);
+    } else if (multiPaperTask) {
+      aiResponseText = await runMultiPaperPipeline(text, multiPaperTask);
+    } else if (uploadedPapers.length === 0) {
+      // No documents yet: general discussion, explicitly without citations
+      const messages = buildRecentHistory();
+      messages.push({
+        role: "user",
+        content: "No documents are uploaded yet. Answer briefly from general knowledge and say that it is general knowledge. " +
+                 "Do not cite papers, do not invent references and do not use [Source] tags.\n\nQuestion: " + text,
+      });
+      aiResponseText = "💬 General knowledge (no documents uploaded)\n\n" + await generateReply(messages);
+    } else {
       let relevantChunks = [];
       try {
         relevantChunks = await searchSimilarChunks(text);
       } catch (searchError) {
-        console.warn("⚠️ Search failed, proceeding without RAG context:", searchError);
-        relevantChunks = [];
+        console.warn("⚠️ Search failed:", searchError);
       }
 
-      let contextString = "";
-      let documentList = "";
-      
-      // Create enhanced document inventory with metadata for AI
-      if (uploadedPapers.length > 0) {
-        documentList = "\n=== AVAILABLE DOCUMENTS ===";
-        uploadedPapers.forEach((paper, index) => {
-          const metadata = paper.metadata || {};
-          const title = metadata.title || paper.name.replace(/\.pdf$/i, '');
-          const authors = metadata.authors && metadata.authors.length > 0 
-            ? metadata.authors.slice(0, 3).join(', ') + (metadata.authors.length > 3 ? ' et al.' : '')
-            : 'Authors not detected';
-          const year = metadata.year ? ` (${metadata.year})` : '';
-          
-          documentList += `\n${index + 1}. "${title}" by ${authors}${year} [File: ${paper.name}, ${paper.chunks} chunks]`;
-        });
-        documentList += `\nTotal uploaded papers: ${uploadedPapers.length}\n=== END DOCUMENT LIST ===\n\n`;
-      }
-      
-      if (relevantChunks.length > 0) {
-        contextString = documentList + "\n--- DOCUMENT CONTEXT ---\n";
-        relevantChunks.forEach((chunk, index) => {
-          const confidenceIndicator = chunk.confidenceLevel === 'high' ? '🎯 HIGH CONFIDENCE' : 
-                                     chunk.confidenceLevel === 'medium' ? '📊 MEDIUM CONFIDENCE' : '💭 LOW CONFIDENCE';
-          
-          // Include paper metadata in context for AI
-          const paperTitle = chunk.paperTitle || chunk.source.replace(/\.pdf$/i, '');
-          const authors = chunk.paperAuthors && chunk.paperAuthors.length > 0 
-            ? chunk.paperAuthors.slice(0, 3).join(', ') + (chunk.paperAuthors.length > 3 ? ' et al.' : '')
-            : 'Authors not detected';
-          const year = chunk.paperYear ? ` (${chunk.paperYear})` : '';
-          
-          contextString += `${chunk.citationTag} [${confidenceIndicator} - Similarity: ${chunk.similarity.toFixed(3)}]\n`;
-          contextString += `Paper: "${paperTitle}" by ${authors}${year}\n`;
-          if (chunk.paperKeywords && chunk.paperKeywords.length > 0) {
-            contextString += `Keywords: ${chunk.paperKeywords.slice(0, 5).join(', ')}\n`;
-          }
-          contextString += `Content: "${chunk.text}"\n\n`;
-        });
-        contextString += "--- END CONTEXT ---\n\n";
-      }
+      if (relevantChunks.length === 0) {
+        // Answering without passages is exactly where the model would invent content
+        aiResponseText = `I could not find any passage related to this question in your ${uploadedPapers.length} uploaded paper(s), ` +
+                         "so I will not answer from memory. Try rephrasing with terms used in the papers.";
+      } else {
+        const { context, used } = buildContext(relevantChunks);
+        const messages = buildRecentHistory();
+        messages.push({ role: "user", content: buildGroundedPrompt(text, context) });
 
-      // Smart prompt construction with token management
-      const baseInstructions = relevantChunks.length > 0
-        ? `CRITICAL INSTRUCTIONS: ` +
-          `You have ${relevantChunks.length} relevant document chunks from ${uploadedPapers.length} uploaded papers. ` +
-          `HIGH CONFIDENCE chunks (🎯) should be cited prominently. MEDIUM/LOW CONFIDENCE chunks should be used with appropriate caveats. ` +
-          "For EVERY claim or finding you mention: " +
-          "1. Quote the relevant text in double quotes " +
-          "2. Follow immediately with the exact citation tag provided [Source: filename - Chunk X] " +
-          "3. For numerical data or specific findings, include the exact passage and citation " +
-          "4. When synthesizing across chunks, cite all relevant sources " +
-          "5. If information is incomplete or unclear, explicitly state this limitation " +
-          "NEVER reference information not provided in the DOCUMENT CONTEXT above.\n\nQuestion: "
-        : uploadedPapers.length > 0 
-          ? `No relevant content found in the ${uploadedPapers.length} uploaded papers for this query. ` +
-            "This could mean: (1) the information isn't in the uploaded documents, (2) different keywords might yield better results, " +
-            "or (3) additional relevant papers need to be uploaded. Please try rephrasing your question or upload more relevant documents.\n\nQuestion: "
-          : "No documents have been uploaded yet. I can provide general assistance, but for evidence-based answers with precise citations, please upload PDF research papers first.\n\nQuestion: ";
-
-      let enhancedPrompt = contextString + baseInstructions + text;
-
-      // Smart token management - reduce context if too long
-      const estimatedTokens = Math.ceil(enhancedPrompt.length / 4); // Rough estimation
-      if (estimatedTokens > MAX_CONTEXT_TOKENS) {
-        console.warn(`⚠️ Context too long (${estimatedTokens} estimated tokens), reducing...`);
-        
-        // Keep only highest confidence chunks
-        const reducedChunks = relevantChunks
-          .filter(chunk => chunk.confidenceLevel === 'high')
-          .slice(0, Math.max(3, Math.floor(relevantChunks.length / 2)));
-        
-        if (reducedChunks.length > 0) {
-          contextString = documentList + "\n--- DOCUMENT CONTEXT (REDUCED TO HIGH CONFIDENCE) ---\n";
-          reducedChunks.forEach((chunk, index) => {
-            contextString += `${chunk.citationTag} [🎯 HIGH CONFIDENCE - Similarity: ${chunk.similarity.toFixed(3)}]\n`;
-            contextString += `Content: "${chunk.text}"\n\n`;
-          });
-          contextString += "--- END CONTEXT ---\n\n";
-          enhancedPrompt = contextString + baseInstructions + text;
-        }
-      }
-
-      const enhancedHistory = [...conversationHistory];
-      enhancedHistory[enhancedHistory.length - 1].content = enhancedPrompt;
-
-      // Multiple retry attempts with different strategies
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
         try {
-          const reply = await engine.chat.completions.create({
-            messages: enhancedHistory,
-            temperature: Math.max(0.1, currentTemperature - (retryCount * 0.2)), // Reduce temperature on retries
-            max_tokens: Math.max(256, 1024 - (retryCount * 256)), // Reduce max_tokens on retries
-            top_p: Math.max(0.5, 0.9 - (retryCount * 0.2)), // More focused on retries
-          });
-
-          aiResponseText = reply.choices[0].message.content;
-          
-          // Validate response quality
-          if (!aiResponseText || aiResponseText.trim().length < 10) {
-            throw new Error("Response too short or empty");
-          }
-          
-          break; // Success, exit retry loop
-          
+          const check = await groundAnswer(await generateReply(messages), used);
+          aiResponseText = check.text + formatGroundingReport(check);
         } catch (genError) {
-          retryCount++;
-          console.warn(`⚠️ Generation attempt ${retryCount} failed:`, genError.message);
-          
-          if (retryCount >= maxRetries) {
-            // Final fallback - provide intelligent error response
-            aiResponseText = generateIntelligentFallback(text, relevantChunks, uploadedPapers, genError);
-          } else {
-            // Wait before retry
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-          }
+          aiResponseText = generateIntelligentFallback(text, relevantChunks, uploadedPapers, genError);
         }
       }
-      
-      // Anti-hallucination validation only if we have a real response
-      if (aiResponseText && !aiResponseText.startsWith("⚠️ I apologize")) {
-        try {
-          const responseValidation = validateResponse(aiResponseText, uploadedPapers, relevantChunks);
-          if (responseValidation.hasWarnings) {
-            aiResponseText = responseValidation.warning + "\n\n" + aiResponseText;
-          }
-        } catch (validationError) {
-          console.warn("⚠️ Validation failed:", validationError);
-        }
-      }
-    } else {
-      // Enhanced fallback when LLM not available
-      aiResponseText = generateNoModelFallback(text, uploadedPapers);
     }
 
     conversationHistory.push({ role: "assistant", content: aiResponseText });
-    
-    // Remove typing indicator before showing response
     removeTypingIndicator();
-    
     chatHistoryContainer.appendChild(createMessageBubble(aiResponseText, false));
     scrollToBottom();
   } catch (err) {
     console.error("💥 Critical Chat Error:", err);
-    
-    // Remove typing indicator on error
     removeTypingIndicator();
-    
-    // Intelligent error response instead of generic error
-    const intelligentErrorResponse = generateIntelligentErrorResponse(err, text, uploadedPapers);
-    chatHistoryContainer.appendChild(createMessageBubble(intelligentErrorResponse, false));
+    chatHistoryContainer.appendChild(createMessageBubble(generateIntelligentErrorResponse(err, text, uploadedPapers), false));
   } finally {
     isTyping = false;
   }
@@ -1184,14 +1214,17 @@ function createMessageBubble(text, isUser = false) {
     const citationMatches = text.match(/\[Source: ([^\]]+) - Chunk (\d+)\]/g) || [];
     updateCitationsPanel(citationMatches);
     
-    // Find and highlight citations with improved formatting
+    // Model output is untrusted: escape it, then add our own markup.
+    // Quotes are highlighted before citations so the regex never touches our HTML attributes.
     let formattedText = text
-      // Highlight citations in brackets with colored background and click handlers
-      .replace(/\[Source: ([^\]]+) - Chunk (\d+)\]/g, 
-        '<span class="citation-link inline-block bg-blue-100 border border-blue-300 px-2 py-1 rounded-md text-xs font-medium text-blue-800 mx-1 hover:bg-blue-200 transition-colors cursor-pointer" data-source="$1" data-chunk="$2" title="Click to see source details">📄 $1 (Chunk $2)</span>')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       // Highlight quoted passages with better styling
-      .replace(/"([^"]+)"/g, 
+      .replace(/"([^"]+)"/g,
         '<span class="bg-yellow-50 border-l-4 border-yellow-400 italic px-2 py-1 rounded-r text-gray-800 my-1 block">"$1"</span>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      // Highlight citations in brackets with colored background and click handlers
+      .replace(/\[Source: ([^\]]+) - Chunk (\d+)\]/g,
+        '<span class="citation-link inline-block bg-blue-100 border border-blue-300 px-2 py-1 rounded-md text-xs font-medium text-blue-800 mx-1 hover:bg-blue-200 transition-colors cursor-pointer" data-source="$1" data-chunk="$2" title="Click to see source details">📄 $1 (Chunk $2)</span>')
       // Highlight confidence indicators
       .replace(/🎯 HIGH CONFIDENCE/g, '<span class="bg-green-100 text-green-800 px-2 py-1 rounded font-bold">🎯 HIGH CONFIDENCE</span>')
       .replace(/📊 MEDIUM CONFIDENCE/g, '<span class="bg-orange-100 text-orange-800 px-2 py-1 rounded font-medium">📊 MEDIUM CONFIDENCE</span>')
@@ -1685,74 +1718,216 @@ function readTextAloud(text) {
 
 // --- AGENTIC WORKFLOWS (20/20 requirement) ---
 
-async function generateLiteratureReview() {
-  if (uploadedPapers.length === 0) {
-    alert('Please upload some PDF papers first!');
+// --- Multi-paper Agent (literature review, comparison, methodology) ---
+// Map: summarize each paper from its own best chunks (so no paper is left out).
+// Reduce: synthesize the summaries into a structured, cited answer, then check it against the sources.
+const REVIEW_CHUNKS_PER_PAPER = 6;
+const REVIEW_SUMMARIES_MAX_CHARS = 7000; // Keeps the synthesis prompt inside a 4k context window
+
+const MULTI_PAPER_TASKS = {
+  review: {
+    label: "Literature review",
+    request: "Generate a concise literature review of the uploaded papers.",
+    query: "research objective, methodology, data, key results with numbers, conclusions and limitations",
+    goal: "a concise, structured literature review",
+    sections: `INTRODUCTION — the research area and the papers covered (2-3 sentences).
+THEMATIC SYNTHESIS — group the papers by shared themes and contrast them (e.g. "While <title 1> finds X, <title 2> argues Y").
+COMPARISON OF METHODS AND RESULTS — compare approaches and cite specific numbers from the summaries.
+GAPS AND CONCLUSION — open questions and an overall conclusion.`,
+  },
+  compare: {
+    label: "Paper comparison",
+    request: "Compare the uploaded papers.",
+    query: "research question, theoretical framework, method, main findings and conclusions",
+    goal: "a structured comparison of the papers",
+    sections: `RESEARCH QUESTIONS — how the questions differ or overlap.
+AGREEMENTS — where the papers support each other.
+DISAGREEMENTS — where they diverge or contradict each other.
+COMPLEMENTARY INSIGHTS — how they build on each other.`,
+  },
+  methods: {
+    label: "Methodology analysis",
+    request: "Analyze the methodologies of the uploaded papers.",
+    query: "research design, data collection, sample size, analysis methods, evaluation and limitations",
+    goal: "a comparative analysis of the methodologies",
+    sections: `RESEARCH DESIGNS — the type of study in each paper.
+DATA AND SAMPLES — data sources and sample sizes (exact numbers).
+ANALYSIS METHODS — techniques and evaluation used.
+STRENGTHS AND LIMITATIONS — as stated by the papers.`,
+  },
+};
+
+function isLiteratureReviewRequest(text) {
+  return /\b(literature|lit\.?)\s+review\b|revue de (la )?litt[ée]rature|state of the art|[ée]tat de l'art/i.test(text);
+}
+
+function detectMultiPaperTask(text) {
+  if (isLiteratureReviewRequest(text)) return "review";
+  if (/\bcompare (all |the )*(uploaded )?papers\b|\bcompar\w* (les|des|tous les) articles\b/i.test(text)) return "compare";
+  if (/\banaly[sz]e the methodolog|\banalyse (des|les) m[ée]thodolog/i.test(text)) return "methods";
+  return null;
+}
+
+async function runMultiPaperTask(task) {
+  if (uploadedPapers.length < (task === "compare" ? 2 : 1)) {
+    alert(task === "compare" ? 'Please upload at least 2 papers to compare!' : 'Please upload some PDF papers first!');
     return;
   }
-  
-  const reviewPrompt = `Generate a comprehensive literature review based ONLY on the ${uploadedPapers.length} uploaded papers: ${uploadedPapers.map(p => p.name).join(', ')}. 
-
-Structure your response with:
-
-1. INTRODUCTION: Brief overview of the research area based on uploaded papers
-2. KEY THEMES: Main themes and topics found in the uploaded papers only
-3. METHODOLOGICAL APPROACHES: Research methods used in the uploaded papers only  
-4. COMPARISON OF FINDINGS: How the uploaded papers agree, disagree, or complement each other
-5. CONCLUSION: Synthesis and future research directions based on uploaded papers only
-
-CRITICAL: Use ONLY information from the uploaded papers. Do NOT reference any external papers or general knowledge. Always cite papers using their exact filenames.`;
-
-  // Inject this as a user message
+  // Routed by sendChatMessage to runMultiPaperPipeline
   if (chatInput) {
-    chatInput.value = reviewPrompt;
+    chatInput.value = MULTI_PAPER_TASKS[task].request;
     await sendChatMessage();
   }
 }
 
-async function analyzeMethodologies() {
-  if (uploadedPapers.length === 0) {
-    alert('Please upload some PDF papers first!');
-    return;
-  }
-  
-  const methodPrompt = `Analyze the research methodologies used ONLY in the ${uploadedPapers.length} uploaded papers: ${uploadedPapers.map(p => p.name).join(', ')}. Focus on:
+const generateLiteratureReview = () => runMultiPaperTask("review");
+const analyzeMethodologies = () => runMultiPaperTask("methods");
+const compareAllPapers = () => runMultiPaperTask("compare");
 
-1. RESEARCH DESIGN: What types of studies were conducted in the uploaded papers?
-2. DATA COLLECTION: How was data gathered in each uploaded paper?
-3. ANALYSIS METHODS: What analytical techniques were used in the uploaded papers?
-4. SAMPLE SIZES: What were the sample characteristics in each uploaded paper?
-5. LIMITATIONS: What limitations did the authors of uploaded papers acknowledge?
-6. METHODOLOGICAL STRENGTHS: What approaches worked well in the uploaded papers?
-
-CRITICAL: Compare methodologies ONLY across the uploaded papers. Do NOT reference external methodologies or general knowledge. Always cite specific papers using their exact filenames.`;
-
-  if (chatInput) {
-    chatInput.value = methodPrompt;
-    await sendChatMessage();
-  }
+function paperLabel(paper) {
+  const metadata = paper.metadata || {};
+  const title = metadata.title || paper.name.replace(/\.pdf$/i, '');
+  const authors = metadata.authors && metadata.authors.length > 0
+    ? ` by ${metadata.authors.slice(0, 3).join(', ')}${metadata.authors.length > 3 ? ' et al.' : ''}`
+    : '';
+  const year = metadata.year ? ` (${metadata.year})` : '';
+  return `"${title}"${authors}${year}`;
 }
 
-async function compareAllPapers() {
-  if (uploadedPapers.length < 2) {
-    alert('Please upload at least 2 papers to compare!');
-    return;
+async function llmComplete(system, user, maxTokens) {
+  const reply = await engine.chat.completions.create({
+    messages: [{ role: "system", content: system }, { role: "user", content: user }],
+    temperature: Math.min(currentTemperature, 0.3), // Factual task: stay close to the sources
+    max_tokens: maxTokens,
+  });
+  return reply.choices[0].message.content.trim();
+}
+
+function selectReviewChunks(paper, queryVector) {
+  const paperChunks = vectorStore.filter(c => c.source === paper.name);
+  if (!queryVector) return paperChunks.slice(0, REVIEW_CHUNKS_PER_PAPER);
+
+  const ranked = paperChunks
+    .filter(c => c.embedding)
+    .map(c => ({ chunk: c, score: cosineSimilarity(queryVector, c.embedding) }))
+    .sort((a, b) => b.score - a.score);
+
+  // Always keep the opening chunk (title/abstract), then the best matches
+  const selected = new Set(paperChunks.slice(0, 1));
+  for (const { chunk } of ranked) {
+    if (selected.size >= REVIEW_CHUNKS_PER_PAPER) break;
+    selected.add(chunk);
   }
-  
-  const comparePrompt = `Perform a detailed comparison of the ${uploadedPapers.length} uploaded papers: ${uploadedPapers.map(p => p.name).join(', ')}. Analyze:
+  return [...selected].sort((a, b) => a.chunkIndex - b.chunkIndex);
+}
 
-1. RESEARCH QUESTIONS: How do the research questions differ or overlap in the uploaded papers?
-2. THEORETICAL FRAMEWORKS: What theories or models are used in each uploaded paper?
-3. FINDINGS: What are the main results from each uploaded paper?
-4. AGREEMENTS: Where do the uploaded papers support each other?
-5. DISAGREEMENTS: Where do the uploaded papers contradict each other?
-6. COMPLEMENTARY INSIGHTS: How do the uploaded papers build on each other?
+async function summarizePaper(paper, chunks) {
+  const excerpts = chunks.map((c, i) => `[Excerpt ${i + 1}]\n"${c.text}"`).join("\n\n");
 
-CRITICAL: Create comparisons ONLY between the uploaded papers listed above. Do NOT reference external research or general knowledge. Always cite papers using their exact filenames and base ALL comparisons on content found in the uploaded documents.`;
+  const system = "You are an academic researcher. You summarize ONE paper using ONLY the excerpts provided. Never invent facts, numbers, authors or references.";
+  const user = `Paper: ${paperLabel(paper)} [File: ${paper.name}]
 
-  if (chatInput) {
-    chatInput.value = comparePrompt;
-    await sendChatMessage();
+Excerpts:
+${excerpts}
+
+Summarize this paper in exactly 5 bullet points, one sentence each:
+- Objective:
+- Method / data:
+- Key results (include every number from the excerpts, copied exactly):
+- Conclusion:
+- Limitations (only if stated):
+If an element is not in the excerpts, write "not stated". Output only the 5 bullets, with no introduction and no citations.`;
+
+  const summary = await llmComplete(system, user, 350);
+  // Keep only the bullets (drops "Here is a summary..." preambles)
+  const bullets = summary.split("\n").filter(line => /^\s*([-•*]|\d+\.)\s/.test(line));
+  return bullets.length > 0 ? bullets.join("\n") : summary;
+}
+
+async function runMultiPaperPipeline(request, taskName) {
+  const task = MULTI_PAPER_TASKS[taskName];
+  const status = document.createElement("div");
+  status.className = "p-2 bg-blue-100 text-blue-800 rounded text-sm mb-2";
+  chatHistoryContainer.appendChild(status);
+  scrollToBottom();
+
+  try {
+    // Earlier user turns give the topic the user cares about
+    const previousQuestions = conversationHistory
+      .filter(m => m.role === "user")
+      .slice(-4, -1)
+      .map(m => m.content.slice(0, 200))
+      .filter(q => !detectMultiPaperTask(q));
+    const topic = [...previousQuestions, request].join(" | ");
+
+    let queryVector = null;
+    if (embedder) {
+      const queryEmbedding = await embedder(`${task.query}. ${topic}`, { pooling: "mean", normalize: true });
+      queryVector = Array.from(queryEmbedding.data);
+    }
+
+    // Map step: one summary per paper, checked against its own excerpts
+    const summaries = [];
+    for (let i = 0; i < uploadedPapers.length; i++) {
+      const paper = uploadedPapers[i];
+      status.textContent = `📚 ${task.label} — summarizing paper ${i + 1}/${uploadedPapers.length}: ${paper.name}`;
+      scrollToBottom();
+
+      const chunks = selectReviewChunks(paper, queryVector);
+      if (chunks.length === 0) continue;
+      try {
+        const summary = cleanModelOutput(await summarizePaper(paper, chunks));
+        const check = await groundAnswer(summary, chunks);
+        summaries.push({ paper, chunks, summary, text: check.text });
+      } catch (err) {
+        console.warn(`⚠️ Summary failed for ${paper.name}:`, err);
+      }
+    }
+    if (summaries.length === 0) throw new Error("No paper could be summarized.");
+
+    const allChunks = summaries.flatMap(s => s.chunks);
+    // Short labels are easier for a small model than titles; they also scope the citation matching
+    const paperChunks = Object.fromEntries(summaries.map((s, i) => [`P${i + 1}`, s.chunks]));
+    const perSummaryMax = Math.floor(REVIEW_SUMMARIES_MAX_CHARS / summaries.length);
+    const summaryBlock = summaries
+      .map((s, i) => `=== [P${i + 1}] ${paperLabel(s.paper)} ===\n${s.summary.slice(0, perSummaryMax)}`)
+      .join("\n\n");
+    const perPaperNotes = summaries
+      .map(s => `📄 ${paperLabel(s.paper)}\n${s.text}`)
+      .join("\n\n");
+
+    // Reduce step: synthesis across papers
+    status.textContent = `✍️ ${task.label} — writing the synthesis of ${summaries.length} papers...`;
+    scrollToBottom();
+
+    const system = "You are an expert academic researcher. Use ONLY the paper summaries provided. Never mention papers, authors, numbers or results that are not in them.";
+    const user = `User request / topic of interest: ${topic}
+
+Summaries of the ${summaries.length} uploaded papers:
+
+${summaryBlock}
+
+Write ${task.goal} with these sections:
+${task.sections}
+
+Rules:
+- Refer to papers by their title, and end each sentence about a paper with its label, e.g. [P1] or [P1][P2].
+- Copy numbers exactly from the summaries. Never compute new numbers (differences, averages, percentages).
+- Discuss ONLY these ${summaries.length} papers; do not simply list them one after another.
+- Do not write a references list or citations: sources are attached automatically.`;
+
+    let synthesis;
+    try {
+      synthesis = await llmComplete(system, user, 900);
+    } catch (err) {
+      console.warn("⚠️ Synthesis failed, returning per-paper summaries:", err);
+      return `⚠️ The synthesis step failed (${err.message}). Here are the per-paper summaries:\n\n${perPaperNotes}`;
+    }
+
+    const check = await groundAnswer(synthesis, allChunks, paperChunks);
+    return `${check.text}${formatGroundingReport(check)}\n\n— — —\nPER-PAPER NOTES (used for the synthesis)\n\n${perPaperNotes}`;
+  } finally {
+    status.remove();
   }
 }
 
